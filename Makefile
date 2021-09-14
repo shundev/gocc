@@ -1,6 +1,6 @@
 all: test
 
-main: main.go
+main: main.go token/*.go ffmt/*.go
 	go build main.go
 
 build: main
