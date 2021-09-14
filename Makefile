@@ -1,6 +1,6 @@
 all: test
 
-main:
+main: main.go
 	go build main.go
 
 build: main
