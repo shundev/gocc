@@ -1,13 +1,13 @@
 package parser
 
-import "go9cc/token"
+import (
+	"go9cc/token"
+	"os"
+)
 
 const (
-	ND_ADD = "ND_ADD"
-	ND_SUB = "ND_SUB"
-	ND_MUL = "ND_MUL"
-	ND_DIV = "ND_DIV"
-	ND_NUM = "ND_NUM"
+	ND_INFIX = "ND_INFIX"
+	ND_NUM   = "ND_NUM"
 )
 
 type NodeKind string
@@ -16,11 +16,12 @@ type Node struct {
 	Kind        NodeKind
 	Left, Right *Node
 	Val         int
+	Str         string
 	Token       *token.Token
 }
 
-func newNode(kind NodeKind, left, right *Node, val int, token *token.Token) *Node {
-	return &Node{Kind: kind, Left: left, Right: right, Val: val, Token: token}
+func newNode(kind NodeKind, left, right *Node, val int, str string, token *token.Token) *Node {
+	return &Node{Kind: kind, Left: left, Right: right, Val: val, Str: str, Token: token}
 }
 
 type Parser struct {
@@ -39,30 +40,77 @@ func (p *Parser) Parse() *Node {
 	return p.expr()
 }
 
+func (p *Parser) nextTkn() {
+	if p.cur.Kind != token.EOF {
+		p.cur = p.cur.Next
+	}
+}
+
 func (p *Parser) expr() *Node {
 	node := p.mul()
 
-	for p.cur.Kind != token.EOF {
-		p.Expect(p.cur, token.PLUS, token.MINUS)
+	for p.cur.Kind == token.PLUS || p.cur.Kind == token.MINUS {
+		switch p.cur.Kind {
+		case token.PLUS:
+			fallthrough
+		case token.MINUS:
+			node = newNode(ND_INFIX, node, nil, p.cur.Val, p.cur.Str, p.cur)
+			p.nextTkn()
+			node.Right = p.mul()
+		default:
+			// never go here
+			p.tzer.Error(p.cur.Col, "Invalid token: %s", p.cur.Str)
+		}
 	}
 
 	return node
 }
 
 func (p *Parser) mul() *Node {
+	node := p.primary()
 
+	for p.cur.Kind == token.ASTERISK || p.cur.Kind == token.SLASH {
+		switch p.cur.Kind {
+		case token.ASTERISK:
+			fallthrough
+		case token.SLASH:
+			node = newNode(ND_INFIX, node, nil, p.cur.Val, p.cur.Str, p.cur)
+			p.nextTkn()
+			node.Right = p.primary()
+		default:
+			// never go here
+			p.tzer.Error(p.cur.Col, "Invalid token: %s", p.cur.Str)
+		}
+	}
+
+	return node
 }
 
 func (p *Parser) primary() *Node {
-
+	p.expect(p.cur, token.NUM, token.LPAREN)
+	switch p.cur.Kind {
+	case token.NUM:
+		return p.num()
+	case token.LPAREN:
+		p.nextTkn() // (
+		n := p.expr()
+		p.expect(p.cur, token.RPAREN)
+		p.nextTkn() // )
+		return n
+	default:
+		// expectでチェックしているのでここは通らず.
+		os.Exit(1)
+		return nil
+	}
 }
 
 func (p *Parser) num() *Node {
-
+	p.expect(p.cur, token.NUM)
+	node := newNode(ND_NUM, nil, nil, p.cur.Val, p.cur.Str, p.cur)
+	p.nextTkn()
+	return node
 }
 
-func (p *Parser) expect(token *token.Token, kind token.TokenKind) {
-	if token.Kind != kind {
-		p.tzer.Error(token.Col, "Expected %s. Got %s.", kind, token.Kind)
-	}
+func (p *Parser) expect(token *token.Token, kinds ...token.TokenKind) {
+	p.tzer.Expect(token, kinds...)
 }
