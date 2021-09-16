@@ -2,7 +2,6 @@ package token
 
 import (
 	"fmt"
-	"go9cc/ffmt"
 	"os"
 )
 
@@ -20,20 +19,31 @@ type Token struct {
 	Next *Token
 	Val  int
 	Str  string
+	Col  int
 }
 
-func New(kind TokenKind, curToken *Token, val int, str string) *Token {
-	token := Token{Kind: kind, Val: val, Str: str}
+func New(kind TokenKind, curToken *Token, val int, str string, col int) *Token {
+	token := Token{Kind: kind, Val: val, Str: str, Col: col}
 	curToken.Next = &token
 	return &token
 }
 
 type Tokenizer struct {
 	idx  int
-	code string
+	code []rune
 }
 
-func (t *Tokenizer) curCh() byte {
+func (t *Tokenizer) Error(pos int, msg string, args ...interface{}) {
+	fmt.Println(pos)
+	fmt.Fprintln(os.Stderr, string(t.code))
+	for i := 0; i < pos; i++ {
+		fmt.Printf(" ")
+	}
+	fmt.Fprintf(os.Stderr, "^ "+msg+"\n", args...)
+	os.Exit(1)
+}
+
+func (t *Tokenizer) curCh() rune {
 	if t.idx >= len(t.code) {
 		return 0
 	}
@@ -42,48 +52,49 @@ func (t *Tokenizer) curCh() byte {
 }
 
 func (t *Tokenizer) Tokenize(code string) *Token {
-	t.code = code
-	t.idx = skip(code, 0)
+	t.code = []rune(code)
+	t.idx = skip(t.code, 0)
 
-	head := &Token{START, nil, 0, ""}
+	head := &Token{START, nil, 0, "", 0}
 	cur := head
 
 	for {
 		switch t.curCh() {
 		case '+':
-			cur = New(RESERVED, cur, 0, "+")
+			cur = New(RESERVED, cur, 0, "+", t.idx)
 			t.idx++
 		case '-':
-			cur = New(RESERVED, cur, 0, "-")
+			cur = New(RESERVED, cur, 0, "-", t.idx)
 			t.idx++
 		case 0:
-			token := New(EOF, cur, 0, "")
+			token := New(EOF, cur, 0, "", t.idx)
 			cur = token
 			return head.Next
 		default:
 			if isDigit(t.curCh()) {
 				intVal, newIdx := readInteger(t.code, t.idx)
-				cur = New(NUM, cur, intVal, fmt.Sprintf("%d", intVal))
+				cur = New(NUM, cur, intVal, fmt.Sprintf("%d", intVal), t.idx)
 				t.idx = newIdx
 			} else {
-				ffmt.Err("Unexpected char: %s", string(t.curCh()))
+				t.idx = skip(t.code, t.idx)
+				t.Error(t.idx, "Unexpected char: %s", string(t.curCh()))
 				os.Exit(1)
 			}
 		}
 
-		t.idx = skip(code, t.idx)
+		t.idx = skip(t.code, t.idx)
 	}
 }
 
-func isWS(ch byte) bool {
+func isWS(ch rune) bool {
 	return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r'
 }
 
-func isDigit(ch byte) bool {
+func isDigit(ch rune) bool {
 	return '0' <= ch && ch <= '9'
 }
 
-func skip(s string, start int) int {
+func skip(s []rune, start int) int {
 	p := start
 	for p < len(s) && isWS(s[p]) {
 		p++
@@ -92,7 +103,7 @@ func skip(s string, start int) int {
 	return p
 }
 
-func readInteger(s string, start int) (int, int) {
+func readInteger(s []rune, start int) (int, int) {
 	p := skip(s, start)
 	val := 0
 	for p < len(s) && isDigit(s[p]) {

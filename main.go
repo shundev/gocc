@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"go9cc/ffmt"
 	"go9cc/token"
 	"log"
 	"os"
@@ -12,10 +11,9 @@ func println(s string, args ...interface{}) {
 	fmt.Printf("  "+s+"\n", args...)
 }
 
-func expect(token *token.Token, kind token.TokenKind) {
+func expect(t *token.Tokenizer, token *token.Token, kind token.TokenKind) {
 	if token.Kind != kind {
-		ffmt.Err("Expected %+v. Got %+v.", kind, token.Kind)
-		os.Exit(1)
+		t.Error(token.Col, "Expected %s. Got %s.", kind, token.Kind)
 	}
 }
 
@@ -29,27 +27,27 @@ func main() {
 	fmt.Println(".globl main")
 	fmt.Println("main:")
 
-	tokinzer := token.Tokenizer{}
-	cur := tokinzer.Tokenize(arg)
+	tzer := &token.Tokenizer{}
+	cur := tzer.Tokenize(arg)
 
-	expect(cur, token.NUM)
+	expect(tzer, cur, token.NUM)
 	println("mov rax, %d", cur.Val)
 	cur = cur.Next
 
 	for cur.Kind != token.EOF {
-		expect(cur, token.RESERVED)
+		expect(tzer, cur, token.RESERVED)
 		switch cur.Kind {
 		case token.RESERVED:
 			if cur.Str == "+" {
 				cur = cur.Next
-				expect(cur, token.NUM)
+				expect(tzer, cur, token.NUM)
 				println("add rax, %d", cur.Val)
 			} else if cur.Str == "-" {
 				cur = cur.Next
-				expect(cur, token.NUM)
+				expect(tzer, cur, token.NUM)
 				println("sub rax, %d", cur.Val)
 			} else {
-				ffmt.Err("Invalid Reserved: %s", cur.Str)
+				tzer.Error(cur.Col, "Invalid RESERVED.")
 			}
 		case token.NUM:
 			println("mov rax, %d", cur.Val)
