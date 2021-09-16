@@ -9,7 +9,10 @@ test: main
 	go test ./parser ./token
 	./test.sh
 
+repl:
+	go run cmd/repl/main.go
+
 clean:
 	rm -f main tmp* *.o *~
 
-.PHONY: test build clean
+.PHONY: test build clean repl

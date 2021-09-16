@@ -24,6 +24,10 @@ func newNode(kind NodeKind, left, right *Node, val int, str string, token *token
 	return &Node{Kind: kind, Left: left, Right: right, Val: val, Str: str, Token: token}
 }
 
+func (n *Node) String() string {
+	return "node"
+}
+
 type Parser struct {
 	tzer      *token.Tokenizer
 	head, cur *token.Token
