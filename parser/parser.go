@@ -1,31 +1,52 @@
 package parser
 
 import (
+	"bytes"
+	"fmt"
 	"go9cc/token"
 	"os"
 )
 
-const (
-	ND_INFIX = "ND_INFIX"
-	ND_NUM   = "ND_NUM"
-)
-
-type NodeKind string
-
-type Node struct {
-	Kind        NodeKind
-	Left, Right *Node
-	Val         int
-	Str         string
-	Token       *token.Token
+type Node interface {
+	String() string
+	Token() *token.Token
 }
 
-func newNode(kind NodeKind, left, right *Node, val int, str string, token *token.Token) *Node {
-	return &Node{Kind: kind, Left: left, Right: right, Val: val, Str: str, Token: token}
+type TokenAccessor struct {
+	token *token.Token
 }
 
-func (n *Node) String() string {
-	return "node"
+func (n *TokenAccessor) Token() *token.Token {
+	return n.token
+}
+
+/* Num */
+
+type NumNode struct {
+	Val int
+	TokenAccessor
+}
+
+func (n *NumNode) String() string {
+	return fmt.Sprintf("%d", n.Val)
+}
+
+/* Infix */
+
+type InfixNode struct {
+	Left, Right Node
+	Op          string
+	TokenAccessor
+}
+
+func (n *InfixNode) String() string {
+	var out bytes.Buffer
+	out.WriteString("(")
+	out.WriteString(n.Left.String())
+	out.WriteString(" " + n.Op + " ")
+	out.WriteString(n.Right.String())
+	out.WriteString(")")
+	return out.String()
 }
 
 type Parser struct {
@@ -40,7 +61,7 @@ func New(tzer *token.Tokenizer) *Parser {
 	return parser
 }
 
-func (p *Parser) Parse() *Node {
+func (p *Parser) Parse() Node {
 	return p.expr()
 }
 
@@ -50,7 +71,7 @@ func (p *Parser) nextTkn() {
 	}
 }
 
-func (p *Parser) expr() *Node {
+func (p *Parser) expr() Node {
 	node := p.mul()
 
 	for p.cur.Kind == token.PLUS || p.cur.Kind == token.MINUS {
@@ -58,9 +79,13 @@ func (p *Parser) expr() *Node {
 		case token.PLUS:
 			fallthrough
 		case token.MINUS:
-			node = newNode(ND_INFIX, node, nil, p.cur.Val, p.cur.Str, p.cur)
+			infix := &InfixNode{
+				Left: node, Right: nil, Op: p.cur.Str,
+				TokenAccessor: TokenAccessor{token: p.cur},
+			}
 			p.nextTkn()
-			node.Right = p.mul()
+			infix.Right = p.mul()
+			node = infix
 		default:
 			// never go here
 			p.tzer.Error(p.cur.Col, "Invalid token: %s", p.cur.Str)
@@ -70,7 +95,7 @@ func (p *Parser) expr() *Node {
 	return node
 }
 
-func (p *Parser) mul() *Node {
+func (p *Parser) mul() Node {
 	node := p.primary()
 
 	for p.cur.Kind == token.ASTERISK || p.cur.Kind == token.SLASH {
@@ -78,9 +103,13 @@ func (p *Parser) mul() *Node {
 		case token.ASTERISK:
 			fallthrough
 		case token.SLASH:
-			node = newNode(ND_INFIX, node, nil, p.cur.Val, p.cur.Str, p.cur)
+			infix := &InfixNode{
+				Left: node, Right: nil, Op: p.cur.Str,
+				TokenAccessor: TokenAccessor{token: p.cur},
+			}
 			p.nextTkn()
-			node.Right = p.primary()
+			infix.Right = p.primary()
+			node = infix
 		default:
 			// never go here
 			p.tzer.Error(p.cur.Col, "Invalid token: %s", p.cur.Str)
@@ -90,7 +119,7 @@ func (p *Parser) mul() *Node {
 	return node
 }
 
-func (p *Parser) primary() *Node {
+func (p *Parser) primary() Node {
 	p.expect(p.cur, token.NUM, token.LPAREN)
 	switch p.cur.Kind {
 	case token.NUM:
@@ -108,9 +137,12 @@ func (p *Parser) primary() *Node {
 	}
 }
 
-func (p *Parser) num() *Node {
+func (p *Parser) num() Node {
 	p.expect(p.cur, token.NUM)
-	node := newNode(ND_NUM, nil, nil, p.cur.Val, p.cur.Str, p.cur)
+	node := &NumNode{
+		Val:           p.cur.Val,
+		TokenAccessor: TokenAccessor{token: p.cur},
+	}
 	p.nextTkn()
 	return node
 }

@@ -16,41 +16,16 @@ func TestParseInfix(t *testing.T) {
 	tzer := token.New(input)
 	p := New(tzer)
 	node := p.Parse()
-	testNode(t, node, ND_INFIX, 0, "-")
-	testNode(t, node.Left, ND_INFIX, 0, "+")
-	testNode(t, node.Left.Left, ND_NUM, 1, "1")
-	testNode(t, node.Left.Right, ND_INFIX, 0, "*")
-	testNode(t, node.Left.Right.Left, ND_NUM, 10, "10")
-	testNode(t, node.Left.Right.Right, ND_NUM, 2, "2")
-
-	testNode(t, node.Right, ND_INFIX, 0, "/")
-	testNode(t, node.Right.Left, ND_NUM, 5, "5")
-	testNode(t, node.Right.Right, ND_NUM, 100, "100")
-
-	testIsNil(t, node.Left.Left.Left)
-	testIsNil(t, node.Right.Right.Right)
+	testNode(t, node, "((1 + (10 * 2)) - (5 / 100))")
 }
 
-func testIsNil(t *testing.T, a *Node) {
-	if a != nil {
-		t.Fatalf("Node is not nil: got=%+v", a)
-	}
-}
-
-func testNode(t *testing.T, node *Node, kind NodeKind, val int, str string) {
+func testNode(t *testing.T, node Node, want string) {
 	if node == nil {
-		t.Fatalf("Node is nil: want=%s", kind)
+		t.Fatalf("Node is nil: want=%s", want)
 	}
 
-	if node.Kind != kind {
-		t.Fatalf("Wrong Node.Kind: %s != %s", node.Kind, kind)
+	if node.String() != want {
+		t.Fatalf("Wrong Node: got=%s, want=%s", node.String(), want)
 	}
 
-	if node.Val != val {
-		t.Fatalf("Wrong Node.Val: %d != %d", node.Val, val)
-	}
-
-	if node.Str != str {
-		t.Fatalf("Wrong Node.Str: %s != %s", node.Str, str)
-	}
 }
