@@ -39,6 +39,10 @@ func (g *Generator) walk(node parser.Node) {
 	case *parser.NumNode:
 		num, _ := node.(*parser.NumNode)
 		g.push(fmt.Sprintf("%d", num.Val))
+	case *parser.UnaryNode:
+		unary, _ := node.(*parser.UnaryNode)
+		infix := parser.UnaryToInfix(unary)
+		g.walk(infix)
 	case *parser.InfixNode:
 		infix, _ := node.(*parser.InfixNode)
 		g.walk(infix.Left)

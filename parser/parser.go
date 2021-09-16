@@ -49,6 +49,25 @@ func (n *InfixNode) String() string {
 	return out.String()
 }
 
+/* Unary */
+
+type UnaryNode struct {
+	Right Node
+	Op    string
+	TokenAccessor
+}
+
+func (n *UnaryNode) String() string {
+	var out bytes.Buffer
+	out.WriteString("(")
+	out.WriteString(n.Op)
+	out.WriteString(n.Right.String())
+	out.WriteString(")")
+	return out.String()
+}
+
+/* Parser */
+
 type Parser struct {
 	tzer      *token.Tokenizer
 	head, cur *token.Token
@@ -63,6 +82,13 @@ func New(tzer *token.Tokenizer) *Parser {
 
 func (p *Parser) Parse() Node {
 	return p.expr()
+}
+
+func UnaryToInfix(unary *UnaryNode) Node {
+	right := unary.Right
+	left := &NumNode{Val: 0}
+	infix := &InfixNode{Left: left, Right: right, Op: unary.Op}
+	return infix
 }
 
 func (p *Parser) nextTkn() {
@@ -96,7 +122,7 @@ func (p *Parser) expr() Node {
 }
 
 func (p *Parser) mul() Node {
-	node := p.primary()
+	node := p.unary()
 
 	for p.cur.Kind == token.ASTERISK || p.cur.Kind == token.SLASH {
 		switch p.cur.Kind {
@@ -108,7 +134,7 @@ func (p *Parser) mul() Node {
 				TokenAccessor: TokenAccessor{token: p.cur},
 			}
 			p.nextTkn()
-			infix.Right = p.primary()
+			infix.Right = p.unary()
 			node = infix
 		default:
 			// never go here
@@ -117,6 +143,25 @@ func (p *Parser) mul() Node {
 	}
 
 	return node
+}
+
+func (p *Parser) unary() Node {
+	switch p.cur.Kind {
+	case token.PLUS:
+		fallthrough
+	case token.MINUS:
+		node := &UnaryNode{
+			Right:         nil,
+			Op:            p.cur.Str,
+			TokenAccessor: TokenAccessor{token: p.cur},
+		}
+		p.nextTkn()
+		node.Right = p.primary()
+		return node
+	default:
+		n := p.primary()
+		return n
+	}
 }
 
 func (p *Parser) primary() Node {
