@@ -6,6 +6,8 @@ main: main.go token/*.go ffmt/*.go
 build: main
 
 test: main
+	rm -f *.s
+	go test ./token
 	./test.sh
 
 clean:
