@@ -1,12 +1,12 @@
 all: test
 
-main: main.go token/*.go ffmt/*.go
+main: main.go token/*.go parser/*.go generator/*.go repl/*.go
 	go build main.go
 
 build: main
 
 test: main
-	go test ./parser ./token
+	go test ./parser ./token ./generator ./repl
 	./test.sh
 
 repl:

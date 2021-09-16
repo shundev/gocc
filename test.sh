@@ -20,5 +20,8 @@ assert 0 0
 assert 42 42
 assert 35 " 10 + 25 "
 assert 21 " 5 + 20 - 4"
+assert 30 " 5 + 5 * 5"
+assert 25 " (5 + 5) * 5 / 2"
+assert 2 " 2/1"
 
 echo OK
