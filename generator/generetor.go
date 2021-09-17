@@ -55,8 +55,15 @@ func (g *Generator) walk(node parser.Node) {
 		g.walk(infix.Left)
 		g.walk(infix.Right)
 
-		g.pop(RDI)
-		g.pop(RAX)
+		// <と>は左右だけ入れ替えて同じアセンブリ命令setlを使う
+		if infix.Op == ">" || infix.Op == ">=" {
+			g.pop(RAX)
+			g.pop(RDI)
+		} else {
+			g.pop(RDI)
+			g.pop(RAX)
+		}
+
 		switch infix.Op {
 		case "+":
 			g.add(RAX, RDI)
@@ -66,6 +73,14 @@ func (g *Generator) walk(node parser.Node) {
 			g.mul(RAX, RDI)
 		case "/":
 			g.div(RDI)
+		case "<":
+			g.cmp(RAX, RDI)
+			g.setl(AL)
+			g.movzb(RAX, AL)
+		case ">":
+			g.cmp(RAX, RDI)
+			g.setl(AL)
+			g.movzb(RAX, AL)
 		case "==":
 			g.cmp(RAX, RDI)
 			g.sete(AL)
@@ -128,6 +143,11 @@ func (g *Generator) sete(rad1 string) {
 
 func (g *Generator) setne(rad1 string) {
 	s := fmt.Sprintf("  setne %s\n", rad1)
+	io.WriteString(g.out, s)
+}
+
+func (g *Generator) setl(rad1 string) {
+	s := fmt.Sprintf("  setl %s\n", rad1)
 	io.WriteString(g.out, s)
 }
 

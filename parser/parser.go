@@ -68,7 +68,8 @@ func (n *UnaryNode) String() string {
 
 /*
 expr    = eq
-eq      = add ("==" add)?
+eq      = lg ("==" lg)?
+lg      = add ("<" add)?
 add     = mul ("+" mul | "-" mul)*
 mul     = unary ("*" unary | "/" unary)*
 unary   = ("+" | "-")? primary
@@ -100,6 +101,14 @@ func UnaryToInfix(unary *UnaryNode) Node {
 	return infix
 }
 
+func Swap(infix *InfixNode) Node {
+	right := infix.Right
+	left := infix.Left
+	infix.Right = left
+	infix.Left = right
+	return infix
+}
+
 func (p *Parser) nextTkn() {
 	if p.cur.Kind != token.EOF {
 		p.cur = p.cur.Next
@@ -111,9 +120,25 @@ func (p *Parser) expr() Node {
 }
 
 func (p *Parser) eq() Node {
-	node := p.add()
+	node := p.lg()
 
 	if p.cur.Kind == token.EQ || p.cur.Kind == token.NEQ {
+		infix := &InfixNode{
+			Left: node, Right: nil, Op: p.cur.Str,
+			TokenAccessor: TokenAccessor{token: p.cur},
+		}
+		p.nextTkn()
+		infix.Right = p.lg()
+		node = infix
+	}
+
+	return node
+}
+
+func (p *Parser) lg() Node {
+	node := p.add()
+
+	if p.cur.Kind == token.LT || p.cur.Kind == token.GT {
 		infix := &InfixNode{
 			Left: node, Right: nil, Op: p.cur.Str,
 			TokenAccessor: TokenAccessor{token: p.cur},
