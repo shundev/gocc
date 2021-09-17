@@ -34,6 +34,10 @@ func TestParseInfix(t *testing.T) {
 			"10 < (5 == 1)",
 			"(10 < (5 == 1))",
 		},
+		{
+			"10 <= 5 == 1 >= 3",
+			"((10 <= 5) == (1 >= 3))",
+		},
 	}
 
 	for i, tt := range tests {

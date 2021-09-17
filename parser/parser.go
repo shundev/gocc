@@ -138,7 +138,14 @@ func (p *Parser) eq() Node {
 func (p *Parser) lg() Node {
 	node := p.add()
 
-	if p.cur.Kind == token.LT || p.cur.Kind == token.GT {
+	switch p.cur.Kind {
+	case token.LT:
+		fallthrough
+	case token.GT:
+		fallthrough
+	case token.LTE:
+		fallthrough
+	case token.GTE:
 		infix := &InfixNode{
 			Left: node, Right: nil, Op: p.cur.Str,
 			TokenAccessor: TokenAccessor{token: p.cur},

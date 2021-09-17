@@ -28,5 +28,6 @@ assert 1 "-3 + 8 == 5"
 assert 0 "(5 * 5) == (5 * 2)"
 assert 1 "(5 * 5) != (5 * 2)"
 assert 0 "5 < 5 == 5 > 2"
+assert 1 "5 <= 5 == 5 >= 2"
 
 echo OK

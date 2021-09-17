@@ -74,12 +74,16 @@ func (g *Generator) walk(node parser.Node) {
 		case "/":
 			g.div(RDI)
 		case "<":
-			g.cmp(RAX, RDI)
-			g.setl(AL)
-			g.movzb(RAX, AL)
+			fallthrough
 		case ">":
 			g.cmp(RAX, RDI)
 			g.setl(AL)
+			g.movzb(RAX, AL)
+		case "<=":
+			fallthrough
+		case ">=":
+			g.cmp(RAX, RDI)
+			g.setle(AL)
 			g.movzb(RAX, AL)
 		case "==":
 			g.cmp(RAX, RDI)
@@ -148,6 +152,11 @@ func (g *Generator) setne(rad1 string) {
 
 func (g *Generator) setl(rad1 string) {
 	s := fmt.Sprintf("  setl %s\n", rad1)
+	io.WriteString(g.out, s)
+}
+
+func (g *Generator) setle(rad1 string) {
+	s := fmt.Sprintf("  setle %s\n", rad1)
 	io.WriteString(g.out, s)
 }
 

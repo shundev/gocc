@@ -108,11 +108,27 @@ func (t *Tokenizer) Tokenize() *Token {
 			cur = newToken(RPAREN, cur, 0, string(t.curCh()), t.idx)
 			t.idx++
 		case '<':
-			cur = newToken(LT, cur, 0, string(t.curCh()), t.idx)
 			t.idx++
+			if t.curCh() == '=' {
+				t.idx--
+				cur = newToken(LTE, cur, 0, "<=", t.idx)
+				t.idx += 2
+			} else {
+				t.idx--
+				cur = newToken(LT, cur, 0, string(t.curCh()), t.idx)
+				t.idx++
+			}
 		case '>':
-			cur = newToken(GT, cur, 0, string(t.curCh()), t.idx)
 			t.idx++
+			if t.curCh() == '=' {
+				t.idx--
+				cur = newToken(GTE, cur, 0, ">=", t.idx)
+				t.idx += 2
+			} else {
+				t.idx--
+				cur = newToken(GT, cur, 0, string(t.curCh()), t.idx)
+				t.idx++
+			}
 		case '=':
 			t.idx++
 			if t.curCh() != '=' {
