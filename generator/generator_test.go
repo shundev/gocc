@@ -56,12 +56,38 @@ main:
   ret
 `
 
+	want3 := `.intel_syntax noprefix
+.globl main
+main:
+  push 5
+  push 5
+  pop rdi
+  pop rax
+  imul rax, rdi
+  push rax
+  push 5
+  push 2
+  pop rdi
+  pop rax
+  imul rax, rdi
+  push rax
+  pop rdi
+  pop rax
+  cmp rax, rdi
+  setne al
+  movzb rax, al
+  push rax
+  pop rax
+  ret
+`
+
 	tests := []struct {
 		input string
 		want  string
 	}{
 		{" (5 + 5) * 5 / 2", want1},
 		{"(5 * 5) == (5 * 2)", want2},
+		{"(5 * 5) != (5 * 2)", want3},
 	}
 
 	for i, tt := range tests {

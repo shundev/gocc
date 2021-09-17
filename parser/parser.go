@@ -113,7 +113,7 @@ func (p *Parser) expr() Node {
 func (p *Parser) eq() Node {
 	node := p.add()
 
-	if p.cur.Kind == token.EQ {
+	if p.cur.Kind == token.EQ || p.cur.Kind == token.NEQ {
 		infix := &InfixNode{
 			Left: node, Right: nil, Op: p.cur.Str,
 			TokenAccessor: TokenAccessor{token: p.cur},

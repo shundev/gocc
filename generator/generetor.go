@@ -70,6 +70,10 @@ func (g *Generator) walk(node parser.Node) {
 			g.cmp(RAX, RDI)
 			g.sete(AL)
 			g.movzb(RAX, AL)
+		case "!=":
+			g.cmp(RAX, RDI)
+			g.setne(AL)
+			g.movzb(RAX, AL)
 		}
 		g.push(RAX)
 	default:
@@ -119,6 +123,11 @@ func (g *Generator) pop(rad string) {
 
 func (g *Generator) sete(rad1 string) {
 	s := fmt.Sprintf("  sete %s\n", rad1)
+	io.WriteString(g.out, s)
+}
+
+func (g *Generator) setne(rad1 string) {
+	s := fmt.Sprintf("  setne %s\n", rad1)
 	io.WriteString(g.out, s)
 }
 
