@@ -8,8 +8,7 @@ import (
 )
 
 func TestGenerator(t *testing.T) {
-	input := " (5 + 5) * 5 / 2"
-	want := `.intel_syntax noprefix
+	want1 := `.intel_syntax noprefix
 .globl main
 main:
   push 5
@@ -32,14 +31,53 @@ main:
   pop rax
   ret
 `
+	want2 := `.intel_syntax noprefix
+.globl main
+main:
+  push 5
+  push 5
+  pop rdi
+  pop rax
+  imul rax, rdi
+  push rax
+  push 5
+  push 2
+  pop rdi
+  pop rax
+  imul rax, rdi
+  push rax
+  pop rdi
+  pop rax
+  cmp rax, rdi
+  sete al
+  movzb rax, al
+  push rax
+  pop rax
+  ret
+`
 
-	out := bytes.NewBufferString("")
-	tzer := token.New(input)
-	p := parser.New(tzer)
-	g := New(p, out)
-	g.Gen()
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{" (5 + 5) * 5 / 2", want1},
+		{"(5 * 5) == (5 * 2)", want2},
+	}
 
-	if out.String() != want {
-		t.Fatalf("Wrong generated code =======\nGot:\n%s\n\nWant:\n%s\n", out.String(), want)
+	for i, tt := range tests {
+		out := bytes.NewBufferString("")
+		tzer := token.New(tt.input)
+		p := parser.New(tzer)
+		g := New(p, out)
+		g.Gen()
+
+		if out.String() != tt.want {
+			t.Fatalf(
+				"%d: Wrong generated code =======\nGot:\n%s\n\nWant:\n%s\n",
+				i,
+				out.String(),
+				tt.want,
+			)
+		}
 	}
 }

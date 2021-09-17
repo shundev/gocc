@@ -66,6 +66,15 @@ func (n *UnaryNode) String() string {
 	return out.String()
 }
 
+/*
+expr    = eq
+eq      = add ("==" add)?
+add     = mul ("+" mul | "-" mul)*
+mul     = unary ("*" unary | "/" unary)*
+unary   = ("+" | "-")? primary
+primary = num | "(" expr ")"
+*/
+
 /* Parser */
 
 type Parser struct {
@@ -98,6 +107,26 @@ func (p *Parser) nextTkn() {
 }
 
 func (p *Parser) expr() Node {
+	return p.eq()
+}
+
+func (p *Parser) eq() Node {
+	node := p.add()
+
+	if p.cur.Kind == token.EQ {
+		infix := &InfixNode{
+			Left: node, Right: nil, Op: p.cur.Str,
+			TokenAccessor: TokenAccessor{token: p.cur},
+		}
+		p.nextTkn()
+		infix.Right = p.add()
+		node = infix
+	}
+
+	return node
+}
+
+func (p *Parser) add() Node {
 	node := p.mul()
 
 	for p.cur.Kind == token.PLUS || p.cur.Kind == token.MINUS {

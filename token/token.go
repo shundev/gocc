@@ -13,6 +13,7 @@ const (
 	SLASH    = "/"
 	LPAREN   = "("
 	RPAREN   = ")"
+	EQ       = "=="
 	NUM      = "NUM"
 	EOF      = "EOF"
 	START    = "START"
@@ -101,6 +102,14 @@ func (t *Tokenizer) Tokenize() *Token {
 		case ')':
 			cur = newToken(RPAREN, cur, 0, string(t.curCh()), t.idx)
 			t.idx++
+		case '=':
+			t.idx++
+			if t.curCh() != '=' {
+				t.Error(t.idx, "Unexpected char: %s", string(t.curCh()))
+			}
+			t.idx--
+			cur = newToken(EQ, cur, 0, "==", t.idx)
+			t.idx += 2
 		case 0:
 			token := newToken(EOF, cur, 0, "", t.idx)
 			cur = token

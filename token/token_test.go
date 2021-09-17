@@ -5,7 +5,7 @@ import (
 )
 
 func TestTokenizer(t *testing.T) {
-	input := "()10+-333333     *400/)"
+	input := "()10+-333333     *400/)=="
 	tzer := New(input)
 	cur := tzer.Tokenize()
 
@@ -29,7 +29,9 @@ func TestTokenizer(t *testing.T) {
 	cur = cur.Next
 	testToken(t, cur, RPAREN, 0, ")", 22)
 	cur = cur.Next
-	testToken(t, cur, EOF, 0, "", 23)
+	testToken(t, cur, EQ, 0, "==", 23)
+	cur = cur.Next
+	testToken(t, cur, EOF, 0, "", 25)
 }
 
 func testToken(t *testing.T, token *Token, kind TokenKind, val int, str string, col int) {

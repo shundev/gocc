@@ -12,6 +12,12 @@ const HEADER = `.intel_syntax noprefix
 main:
 `
 
+const (
+	RAX = "rax"
+	RDI = "rdi"
+	AL  = "al"
+)
+
 type Generator struct {
 	parser *parser.Parser
 	out    io.Writer
@@ -28,7 +34,7 @@ func (g *Generator) Gen() {
 
 	node := g.parser.Parse()
 	g.walk(node)
-	g.pop("rax")
+	g.pop(RAX)
 }
 
 /*
@@ -40,6 +46,7 @@ func (g *Generator) walk(node parser.Node) {
 		num, _ := node.(*parser.NumNode)
 		g.push(fmt.Sprintf("%d", num.Val))
 	case *parser.UnaryNode:
+		// Regard unary as infix for easy development(i.e. -1 -> 0 - 1)
 		unary, _ := node.(*parser.UnaryNode)
 		infix := parser.UnaryToInfix(unary)
 		g.walk(infix)
@@ -48,19 +55,23 @@ func (g *Generator) walk(node parser.Node) {
 		g.walk(infix.Left)
 		g.walk(infix.Right)
 
-		g.pop("rdi")
-		g.pop("rax")
+		g.pop(RDI)
+		g.pop(RAX)
 		switch infix.Op {
 		case "+":
-			g.add("rax", "rdi")
+			g.add(RAX, RDI)
 		case "-":
-			g.sub("rax", "rdi")
+			g.sub(RAX, RDI)
 		case "*":
-			g.mul("rax", "rdi")
+			g.mul(RAX, RDI)
 		case "/":
-			g.div("rdi")
+			g.div(RDI)
+		case "==":
+			g.cmp(RAX, RDI)
+			g.sete(AL)
+			g.movzb(RAX, AL)
 		}
-		g.push("rax")
+		g.push(RAX)
 	default:
 		os.Exit(1)
 	}
@@ -103,6 +114,21 @@ func (g *Generator) push(val string) {
 
 func (g *Generator) pop(rad string) {
 	s := fmt.Sprintf("  pop %s\n", rad)
+	io.WriteString(g.out, s)
+}
+
+func (g *Generator) sete(rad1 string) {
+	s := fmt.Sprintf("  sete %s\n", rad1)
+	io.WriteString(g.out, s)
+}
+
+func (g *Generator) cmp(rad1, rad2 string) {
+	s := fmt.Sprintf("  cmp %s, %s\n", rad1, rad2)
+	io.WriteString(g.out, s)
+}
+
+func (g *Generator) movzb(rad1, rad2 string) {
+	s := fmt.Sprintf("  movzb %s, %s\n", rad1, rad2)
 	io.WriteString(g.out, s)
 }
 
