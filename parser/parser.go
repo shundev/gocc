@@ -129,7 +129,7 @@ func New(tzer *token.Tokenizer) *Parser {
 	return parser
 }
 
-func (p *Parser) Parse() Node {
+func (p *Parser) Parse() *ProgramNode {
 	return p.program()
 }
 
@@ -154,7 +154,7 @@ func (p *Parser) nextTkn() {
 	}
 }
 
-func (p *Parser) program() Node {
+func (p *Parser) program() *ProgramNode {
 	node := &ProgramNode{}
 	node.Stmts = []*StmtNode{}
 	for p.cur.Kind != token.EOF {

@@ -42,6 +42,14 @@ nodeの評価結果をスタックトップにpushする
 */
 func (g *Generator) walk(node parser.Node) {
 	switch node.(type) {
+	case *parser.ProgramNode:
+		program, _ := node.(*parser.ProgramNode)
+		for _, stmt := range program.Stmts {
+			g.walk(stmt)
+		}
+	case *parser.StmtNode:
+		stmt, _ := node.(*parser.StmtNode)
+		g.walk(stmt.Exp)
 	case *parser.NumNode:
 		num, _ := node.(*parser.NumNode)
 		g.push(fmt.Sprintf("%d", num.Val))
@@ -96,6 +104,7 @@ func (g *Generator) walk(node parser.Node) {
 		}
 		g.push(RAX)
 	default:
+		fmt.Fprintf(os.Stderr, "Unknown node: %T\n", node)
 		os.Exit(1)
 	}
 }

@@ -54,6 +54,10 @@ func TestParseInfix(t *testing.T) {
 			"",
 			"",
 		},
+		{
+			"(1 + 2) == (5 - 2)",
+			"((1 + 2) == (5 - 2))",
+		},
 	}
 
 	for i, tt := range tests {
