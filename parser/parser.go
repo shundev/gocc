@@ -91,7 +91,10 @@ type StmtNode struct {
 }
 
 func (n *StmtNode) String() string {
-	return n.exp.String()
+	var out bytes.Buffer
+	out.WriteString(n.exp.String())
+	out.WriteString(";")
+	return out.String()
 }
 
 func (n *StmtNode) Exp() Node {
@@ -108,6 +111,7 @@ func (n *ReturnStmtNode) String() string {
 	var out bytes.Buffer
 	out.WriteString("return ")
 	out.WriteString(n.exp.String())
+	out.WriteString(";")
 	return out.String()
 }
 
@@ -123,12 +127,12 @@ func (n *ProgramNode) String() string {
 	for _, stmt := range n.Stmts {
 		ss = append(ss, stmt.String())
 	}
-	return strings.Join(ss, "; ")
+	return strings.Join(ss, " ")
 }
 
 /*
 program = stmt*
-stmt    = (return expr) | expr
+stmt    = (return expr) | expr ";"
 expr    = assign
 assign  = eq ("=" assign)?
 eq      = lg ("==" lg)?
@@ -183,11 +187,6 @@ func (p *Parser) program() *ProgramNode {
 	node.Stmts = []Stmt{}
 	for p.cur.Kind != token.EOF {
 		node.Stmts = append(node.Stmts, p.stmt())
-		if p.cur.Kind != token.SEMICOLLON {
-			break
-		}
-
-		p.nextTkn()
 	}
 	return node
 }
@@ -201,10 +200,14 @@ func (p *Parser) stmt() Stmt {
 				exp: exp,
 			},
 		}
+		p.expect(p.cur, token.SEMICOLLON)
+		p.nextTkn()
 		return node
 	}
 	exp := p.expr()
 	node := &StmtNode{exp: exp}
+	p.expect(p.cur, token.SEMICOLLON)
+	p.nextTkn()
 	return node
 }
 
