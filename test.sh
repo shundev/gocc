@@ -33,5 +33,7 @@ assert 7 "a = 7;"
 assert 70 "a = 70; a"
 assert 9 "a = 3; b = 6; a + b;"
 assert 18 "c = 9; b = 6; a = 3; a + b + c;"
+assert 10 "a = 10; return a; return 20"
+assert 50 "a = 10;b = c= 20; return a + b + c;"
 
 echo OK

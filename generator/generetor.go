@@ -69,6 +69,11 @@ func (g *Generator) walk(node parser.Node) {
 		stmt, _ := node.(*parser.StmtNode)
 		g.walk(stmt.Exp())
 		g.pop(RAX)
+	case *parser.ReturnStmtNode:
+		stmt, _ := node.(*parser.ReturnStmtNode)
+		g.walk(stmt.Exp())
+		g.pop(RAX)
+		g.epilog()
 	case *parser.NumNode:
 		num, _ := node.(*parser.NumNode)
 		g.push(fmt.Sprintf("%d", num.Val))
