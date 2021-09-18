@@ -229,14 +229,14 @@ func (p *Parser) Parse() *ProgramNode {
 	return p.program()
 }
 
-func UnaryToInfix(unary *UnaryExp) Node {
+func UnaryToInfix(unary *UnaryExp) *InfixExp {
 	right := unary.Right
 	left := &NumExp{Val: 0}
 	infix := &InfixExp{Left: left, Right: right, Op: unary.Op}
 	return infix
 }
 
-func Swap(infix *InfixExp) Node {
+func Swap(infix *InfixExp) *InfixExp {
 	right := infix.Right
 	left := infix.Left
 	infix.Right = left
