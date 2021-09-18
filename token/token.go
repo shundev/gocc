@@ -1,9 +1,12 @@
 package token
 
 import (
+	"bytes"
 	"fmt"
+	"go9cc/emoji"
 	"os"
 	"strings"
+	"unicode"
 )
 
 const (
@@ -13,6 +16,7 @@ const (
 	SLASH    = "/"
 	LPAREN   = "("
 	RPAREN   = ")"
+	ASSIGN   = "="
 	EQ       = "=="
 	NEQ      = "!="
 	LT       = "<"
@@ -20,6 +24,7 @@ const (
 	GT       = ">"
 	GTE      = ">="
 	NUM      = "NUM"
+	IDENT    = "IDENT"
 	EOF      = "EOF"
 	START    = "START"
 )
@@ -131,12 +136,15 @@ func (t *Tokenizer) Tokenize() *Token {
 			}
 		case '=':
 			t.idx++
-			if t.curCh() != '=' {
-				t.Error(t.idx, "Unexpected char: %s", string(t.curCh()))
+			if t.curCh() == '=' {
+				t.idx--
+				cur = newToken(EQ, cur, 0, "==", t.idx)
+				t.idx += 2
+			} else {
+				t.idx--
+				cur = newToken(ASSIGN, cur, 0, "=", t.idx)
+				t.idx++
 			}
-			t.idx--
-			cur = newToken(EQ, cur, 0, "==", t.idx)
-			t.idx += 2
 		case '!':
 			t.idx++
 			if t.curCh() != '=' {
@@ -153,6 +161,10 @@ func (t *Tokenizer) Tokenize() *Token {
 			if isDigit(t.curCh()) {
 				intVal, newIdx := readInteger(t.code, t.idx)
 				cur = newToken(NUM, cur, intVal, fmt.Sprintf("%d", intVal), t.idx)
+				t.idx = newIdx
+			} else if isIdent(t.curCh()) {
+				strVal, newIdx := readIdent(t.code, t.idx)
+				cur = newToken(IDENT, cur, 0, strVal, t.idx)
 				t.idx = newIdx
 			} else {
 				t.idx = skip(t.code, t.idx)
@@ -171,6 +183,45 @@ func isWS(ch rune) bool {
 
 func isDigit(ch rune) bool {
 	return '0' <= ch && ch <= '9'
+}
+
+func isIdentStart(ch rune) bool {
+	return 'a' <= ch && ch <= 'z'
+}
+
+func isIdent(ch rune) bool {
+	if 'a' <= ch && ch <= 'z' {
+		return true
+	}
+
+	if unicode.In(ch, unicode.Katakana) {
+		return true
+	}
+
+	if unicode.In(ch, unicode.Hiragana) {
+		return true
+	}
+
+	if unicode.In(ch, unicode.Han) {
+		return true
+	}
+
+	if emoji.In(ch) {
+		return true
+	}
+
+	return false
+}
+
+func readIdent(s []rune, start int) (string, int) {
+	idx := start
+	var out bytes.Buffer
+	for idx < len(s) && (isIdent(s[idx]) || isDigit(s[idx])) {
+		out.WriteRune(s[idx])
+		idx++
+	}
+
+	return out.String(), idx
 }
 
 func skip(s []rune, start int) int {

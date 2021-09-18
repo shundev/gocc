@@ -5,7 +5,7 @@ import (
 )
 
 func TestTokenizer(t *testing.T) {
-	input := "()10+-333333     *400/)==!=<><=>="
+	input := "()10+-333333     *400/)==!=<><=>=a100=z かなカナ漢字 🍺"
 	tzer := New(input)
 	cur := tzer.Tokenize()
 
@@ -41,23 +41,33 @@ func TestTokenizer(t *testing.T) {
 	cur = cur.Next
 	testToken(t, cur, GTE, 0, ">=", 31)
 	cur = cur.Next
-	testToken(t, cur, EOF, 0, "", 33)
+	testToken(t, cur, IDENT, 0, "a100", 33)
+	cur = cur.Next
+	testToken(t, cur, ASSIGN, 0, "=", 37)
+	cur = cur.Next
+	testToken(t, cur, IDENT, 0, "z", 38)
+	cur = cur.Next
+	testToken(t, cur, IDENT, 0, "かなカナ漢字", 40)
+	cur = cur.Next
+	testToken(t, cur, IDENT, 0, "🍺", 47)
+	cur = cur.Next
+	testToken(t, cur, EOF, 0, "", 48)
 }
 
 func testToken(t *testing.T, token *Token, kind TokenKind, val int, str string, col int) {
 	if token.Kind != kind {
-		t.Errorf("Wrong TokenKind: %s != %s", token.Kind, kind)
+		t.Fatalf("Wrong TokenKind: %s != %s", token.Kind, kind)
 	}
 
 	if token.Val != val {
-		t.Errorf("Wrong Token.Val: %d != %d", token.Val, val)
+		t.Fatalf("Wrong Token.Val: %d != %d", token.Val, val)
 	}
 
 	if token.Str != str {
-		t.Errorf("Wrong Token.Str: %s != %s", token.Str, str)
+		t.Fatalf("Wrong Token.Str: %s != %s", token.Str, str)
 	}
 	if token.Col != col {
-		t.Errorf("Wrong Token.Col: %d != %d", token.Col, col)
+		t.Fatalf("Wrong Token.Col: %d != %d", token.Col, col)
 	}
 
 }

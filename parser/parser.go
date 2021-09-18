@@ -66,14 +66,26 @@ func (n *UnaryNode) String() string {
 	return out.String()
 }
 
+/* Identifier */
+
+type IdentNode struct {
+	Name string
+	TokenAccessor
+}
+
+func (n *IdentNode) String() string {
+	return n.Name
+}
+
 /*
-expr    = eq
+expr    = assign
+assign  = (ident "=")? eq
 eq      = lg ("==" lg)?
 lg      = add ("<" add)?
 add     = mul ("+" mul | "-" mul)*
 mul     = unary ("*" unary | "/" unary)*
 unary   = ("+" | "-")? primary
-primary = num | "(" expr ")"
+primary = num | ident | "(" expr ")"
 */
 
 /* Parser */
@@ -116,6 +128,27 @@ func (p *Parser) nextTkn() {
 }
 
 func (p *Parser) expr() Node {
+	return p.assign()
+}
+
+func (p *Parser) assign() Node {
+	if p.cur.Kind == token.IDENT {
+		name := p.cur.Str
+		p.nextTkn()
+		p.expect(p.cur, token.ASSIGN)
+		left := &IdentNode{
+			Name:          name,
+			TokenAccessor: TokenAccessor{token: p.cur},
+		}
+		infix := &InfixNode{
+			Left: left, Right: nil, Op: p.cur.Str,
+			TokenAccessor: TokenAccessor{token: p.cur},
+		}
+		p.nextTkn()
+		infix.Right = p.eq()
+		return infix
+	}
+
 	return p.eq()
 }
 

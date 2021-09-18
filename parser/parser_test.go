@@ -38,6 +38,10 @@ func TestParseInfix(t *testing.T) {
 			"10 <= 5 == 1 >= 3",
 			"((10 <= 5) == (1 >= 3))",
 		},
+		{
+			"ab1000 = 999",
+			"(ab1000 = 999)",
+		},
 	}
 
 	for i, tt := range tests {
