@@ -175,6 +175,30 @@ func (n *IfStmt) String() string {
 	return out.String()
 }
 
+/* While Statement */
+
+type WhileStmt struct {
+	Cond  Exp
+	Body  Stmt
+	token *token.Token
+}
+
+func (n *WhileStmt) stmtNode() {}
+
+func (n *WhileStmt) TokenLiteral() string {
+	return n.token.Str
+}
+
+func (n *WhileStmt) String() string {
+	var out bytes.Buffer
+	out.WriteString("while (")
+	out.WriteString(n.Cond.String())
+	out.WriteString(") { ")
+	out.WriteString(n.Body.String())
+	out.WriteString(" }")
+	return out.String()
+}
+
 /* Program */
 
 type ProgramNode struct {
@@ -198,17 +222,18 @@ func (n *ProgramNode) String() string {
 }
 
 /*
-program = stmt*
-stmt    = (return expr ";") | (expr ";") | ifstmt
-ifstmt  = "if" "(" expr ")" stmt ("else" stmt)?
-expr    = assign
-assign  = eq ("=" assign)?
-eq      = lg ("==" lg)?
-lg      = add ("<" add)?
-add     = mul ("+" mul | "-" mul)*
-mul     = unary ("*" unary | "/" unary)*
-unary   = ("+" | "-")? primary
-primary = num | ident | "(" expr ")"
+program   = stmt*
+stmt      = (return expr ";") | (expr ";") | ifstmt | whilestmt
+ifstmt    = "if" "(" expr ")" stmt ("else" stmt)?
+whilestmt = "while" "(" expr ")" stmt
+expr      = assign
+assign    = eq ("=" assign)?
+eq        = lg ("==" lg)?
+lg        = add ("<" add)?
+add       = mul ("+" mul | "-" mul)*
+mul       = unary ("*" unary | "/" unary)*
+unary     = ("+" | "-")? primary
+primary   = num | ident | "(" expr ")"
 */
 
 /* Parser */
@@ -260,37 +285,74 @@ func (p *Parser) program() *ProgramNode {
 }
 
 func (p *Parser) stmt() Stmt {
+	if p.cur.Kind == token.WHILE {
+		return p.whileStmt()
+	}
+
 	if p.cur.Kind == token.IF {
-		p.nextTkn()
-		p.expect(p.cur, token.LPAREN)
-		p.nextTkn()
-		exp := p.expr()
-		p.expect(p.cur, token.RPAREN)
-		p.nextTkn()
-		ifBody := p.stmt()
-		node := &IfStmt{
-			Cond:   exp,
-			IfBody: ifBody,
-		}
-		if p.cur.Kind == token.ELSE {
-			p.nextTkn()
-			node.ElseBody = p.stmt()
-		}
-		return node
+		return p.ifStmt()
 	}
 
 	if p.cur.Kind == token.RETURN {
-		p.nextTkn()
-		exp := p.expr()
-		node := &ReturnStmt{
-			Exp: exp,
-		}
-		p.expect(p.cur, token.SEMICOLLON)
-		p.nextTkn()
-		return node
+		return p.returnStmt()
 	}
+
 	exp := p.expr()
 	node := &ExpStmt{Exp: exp}
+	p.expect(p.cur, token.SEMICOLLON)
+	p.nextTkn()
+	return node
+}
+
+func (p *Parser) whileStmt() *WhileStmt {
+	p.expect(p.cur, token.WHILE)
+	tkn := p.cur
+	p.nextTkn()
+	p.expect(p.cur, token.LPAREN)
+	p.nextTkn()
+	exp := p.expr()
+	p.expect(p.cur, token.RPAREN)
+	p.nextTkn()
+	body := p.stmt()
+	node := &WhileStmt{
+		Cond:  exp,
+		Body:  body,
+		token: tkn,
+	}
+	return node
+}
+
+func (p *Parser) ifStmt() *IfStmt {
+	p.expect(p.cur, token.IF)
+	tkn := p.cur
+	p.nextTkn()
+	p.expect(p.cur, token.LPAREN)
+	p.nextTkn()
+	exp := p.expr()
+	p.expect(p.cur, token.RPAREN)
+	p.nextTkn()
+	ifBody := p.stmt()
+	node := &IfStmt{
+		Cond:   exp,
+		IfBody: ifBody,
+		token:  tkn,
+	}
+	if p.cur.Kind == token.ELSE {
+		p.nextTkn()
+		node.ElseBody = p.stmt()
+	}
+	return node
+}
+
+func (p *Parser) returnStmt() *ReturnStmt {
+	p.expect(p.cur, token.RETURN)
+	tkn := p.cur
+	p.nextTkn()
+	exp := p.expr()
+	node := &ReturnStmt{
+		Exp:   exp,
+		token: tkn,
+	}
 	p.expect(p.cur, token.SEMICOLLON)
 	p.nextTkn()
 	return node

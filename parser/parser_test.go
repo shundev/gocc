@@ -74,6 +74,10 @@ func TestParseInfix(t *testing.T) {
 			"if (a = 1 == 10) return b; else return a + 10;",
 			"if ((a = (1 == 10))) { return b; } else { return (a + 10); }",
 		},
+		{
+			"while (a == 10) return a;",
+			"while ((a == 10)) { return a; }",
+		},
 	}
 
 	for i, tt := range tests {

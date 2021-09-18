@@ -37,5 +37,6 @@ assert 10 "a = 10; return a; return 20;"
 assert 50 "a = 10;b = c= 20; return a + b + c;"
 assert 10 "a = 0; if (a + 1) return 10; else return 5;"
 assert 5 "a = 0; if (a) return 10; else return 5;"
+assert 8 "a = 0; while (a < 5) a = a + 4; return a;"
 
 echo OK
