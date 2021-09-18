@@ -27,6 +27,10 @@ const (
 	IDENT      = "IDENT"
 	SEMICOLLON = ";"
 	RETURN     = "RETURN"
+	IF         = "IF"
+	ELSE       = "ELSE"
+	WHILE      = "WHILE"
+	DO         = "DO"
 	EOF        = "EOF"
 	START      = "START"
 )
@@ -162,9 +166,20 @@ func (t *Tokenizer) Tokenize() *Token {
 			cur = newToken(EOF, cur, 0, "", t.idx)
 			return head.Next
 		default:
-			strVal, newIdx := tryKeywords(t.code, t.idx)
-			if strVal == "return" {
-				cur = newToken(RETURN, cur, 0, strVal, t.idx)
+			if newIdx, ok := tryKeyword(t.code, t.idx, "return"); ok {
+				cur = newToken(RETURN, cur, 0, "return", t.idx)
+				t.idx = newIdx
+			} else if newIdx, ok := tryKeyword(t.code, t.idx, "if"); ok {
+				cur = newToken(IF, cur, 0, "if", t.idx)
+				t.idx = newIdx
+			} else if newIdx, ok := tryKeyword(t.code, t.idx, "else"); ok {
+				cur = newToken(ELSE, cur, 0, "else", t.idx)
+				t.idx = newIdx
+			} else if newIdx, ok := tryKeyword(t.code, t.idx, "while"); ok {
+				cur = newToken(WHILE, cur, 0, "while", t.idx)
+				t.idx = newIdx
+			} else if newIdx, ok := tryKeyword(t.code, t.idx, "do"); ok {
+				cur = newToken(DO, cur, 0, "do", t.idx)
 				t.idx = newIdx
 			} else if isDigit(t.curCh()) {
 				intVal, newIdx := readInteger(t.code, t.idx)
@@ -241,23 +256,23 @@ func readIdent(s []rune, start int) (string, int) {
 	return out.String(), idx
 }
 
-func tryKeywords(s []rune, start int) (string, int) {
+func tryKeyword(s []rune, start int, keyword string) (int, bool) {
 	// TODO optimize
 	ss := string(s[start:])
-	if !strings.HasPrefix(ss, "return") {
-		return "", start
+	if !strings.HasPrefix(ss, keyword) {
+		return start, false
 	}
 
-	if ss == "return" {
-		return "return", start + 6
+	if ss == keyword {
+		return start + len([]rune(keyword)), true
 	}
 
-	r := []rune(ss[6:])
+	r := []rune(ss[len([]rune(keyword)):])
 	if !isIdent(r[0]) {
-		return "return", start + 6
+		return start + len([]rune(keyword)), true
 	}
 
-	return "", start
+	return start, false
 }
 
 func readInteger(s []rune, start int) (int, int) {
