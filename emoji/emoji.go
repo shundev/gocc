@@ -15,8 +15,8 @@ func In(r rune) bool {
 }
 
 var emojis = emoji{
-	{0x0023, 0x0023},   //  (#️)       number sign
-	{0x002A, 0x002A},   //  (*️)       asterisk
+	{0x0023, 0x0023}, //  (#️)       number sign
+	//{0x002A, 0x002A},   //  (*️)       asterisk
 	{0x0030, 0x0039},   //  (0️..9️)    digit zero..digit nine
 	{0x00A9, 0x00A9},   //  (©️)       copyright
 	{0x00AE, 0x00AE},   //  (®️)       registered

@@ -62,16 +62,18 @@ func (g *Generator) walk(node parser.Node) {
 	case *parser.ProgramNode:
 		program, _ := node.(*parser.ProgramNode)
 		for _, stmt := range program.Stmts {
-			g.walk(stmt)
+			node, _ := stmt.(parser.Node)
+			g.walk(node)
 		}
 	case *parser.StmtNode:
 		stmt, _ := node.(*parser.StmtNode)
-		g.walk(stmt.Exp)
+		g.walk(stmt.Exp())
 		g.pop(RAX)
 	case *parser.NumNode:
 		num, _ := node.(*parser.NumNode)
 		g.push(fmt.Sprintf("%d", num.Val))
 	case *parser.IdentNode:
+		// 変数呼び出し
 		ident, _ := node.(*parser.IdentNode)
 		offset := getOffset(ident)
 		g.mov(RAX, RBP)

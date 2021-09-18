@@ -26,6 +26,7 @@ const (
 	NUM        = "NUM"
 	IDENT      = "IDENT"
 	SEMICOLLON = ";"
+	RETURN     = "RETURN"
 	EOF        = "EOF"
 	START      = "START"
 )
@@ -161,7 +162,11 @@ func (t *Tokenizer) Tokenize() *Token {
 			cur = newToken(EOF, cur, 0, "", t.idx)
 			return head.Next
 		default:
-			if isDigit(t.curCh()) {
+			strVal, newIdx := tryKeywords(t.code, t.idx)
+			if strVal == "return" {
+				cur = newToken(RETURN, cur, 0, strVal, t.idx)
+				t.idx = newIdx
+			} else if isDigit(t.curCh()) {
 				intVal, newIdx := readInteger(t.code, t.idx)
 				cur = newToken(NUM, cur, intVal, fmt.Sprintf("%d", intVal), t.idx)
 				t.idx = newIdx
@@ -227,13 +232,23 @@ func readIdent(s []rune, start int) (string, int) {
 	return out.String(), idx
 }
 
-func skip(s []rune, start int) int {
-	p := start
-	for p < len(s) && isWS(s[p]) {
-		p++
+func tryKeywords(s []rune, start int) (string, int) {
+	// TODO optimize
+	ss := string(s[start:])
+	if !strings.HasPrefix(ss, "return") {
+		return "", start
 	}
 
-	return p
+	if ss == "return" {
+		return "return", start + 6
+	}
+
+	r := []rune(ss[6:])
+	if !isIdent(r[0]) {
+		return "return", start + 6
+	}
+
+	return "", start
 }
 
 func readInteger(s []rune, start int) (int, int) {
@@ -246,4 +261,26 @@ func readInteger(s []rune, start int) (int, int) {
 	}
 
 	return val, p
+}
+
+func skip(s []rune, start int) int {
+	p := start
+	for p < len(s) && isWS(s[p]) {
+		p++
+	}
+
+	return p
+}
+
+func equal(a, b []rune) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	for i, v := range a {
+		if v != b[i] {
+			return false
+		}
+	}
+	return true
 }

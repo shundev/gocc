@@ -80,19 +80,41 @@ func (n *IdentNode) String() string {
 
 /* Statement */
 
+type Stmt interface {
+	Exp() Node
+	String() string
+}
+
 type StmtNode struct {
-	Exp Node
+	exp Node
 	TokenAccessor
 }
 
 func (n *StmtNode) String() string {
-	return n.Exp.String()
+	return n.exp.String()
+}
+
+func (n *StmtNode) Exp() Node {
+	return n.exp
+}
+
+/* Return Statement */
+
+type ReturnStmtNode struct {
+	StmtNode
+}
+
+func (n *ReturnStmtNode) String() string {
+	var out bytes.Buffer
+	out.WriteString("return ")
+	out.WriteString(n.exp.String())
+	return out.String()
 }
 
 /* Program */
 
 type ProgramNode struct {
-	Stmts []*StmtNode
+	Stmts []Stmt
 	TokenAccessor
 }
 
@@ -105,6 +127,8 @@ func (n *ProgramNode) String() string {
 }
 
 /*
+program = stmt*
+stmt    = (return expr) | expr
 expr    = assign
 assign  = eq ("=" assign)?
 eq      = lg ("==" lg)?
@@ -156,7 +180,7 @@ func (p *Parser) nextTkn() {
 
 func (p *Parser) program() *ProgramNode {
 	node := &ProgramNode{}
-	node.Stmts = []*StmtNode{}
+	node.Stmts = []Stmt{}
 	for p.cur.Kind != token.EOF {
 		node.Stmts = append(node.Stmts, p.stmt())
 		if p.cur.Kind != token.SEMICOLLON {
@@ -168,9 +192,19 @@ func (p *Parser) program() *ProgramNode {
 	return node
 }
 
-func (p *Parser) stmt() *StmtNode {
+func (p *Parser) stmt() Stmt {
+	if p.cur.Kind == token.RETURN {
+		p.nextTkn()
+		exp := p.expr()
+		node := &ReturnStmtNode{
+			StmtNode: StmtNode{
+				exp: exp,
+			},
+		}
+		return node
+	}
 	exp := p.expr()
-	node := &StmtNode{Exp: exp}
+	node := &StmtNode{exp: exp}
 	return node
 }
 
