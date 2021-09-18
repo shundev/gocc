@@ -23,6 +23,7 @@ const (
 type Generator struct {
 	parser *parser.Parser
 	out    io.Writer
+	lblCnt int
 }
 
 func New(p *parser.Parser, out io.Writer) *Generator {
@@ -74,6 +75,21 @@ func (g *Generator) walk(node parser.Node) {
 		g.walk(stmt.Exp)
 		g.pop(RAX)
 		g.epilog()
+	case *parser.IfStmt:
+		stmt, _ := node.(*parser.IfStmt)
+		lblElse := g.genLbl()
+		lblEnd := g.genLbl()
+		g.walk(stmt.Cond)
+		g.pop(RAX)
+		g.cmp(RAX, "0")
+		g.je(lblElse) // RAXが0(false)ならelseブロックにジャンプ
+		g.walk(stmt.IfBody)
+		g.jmp(lblEnd)
+		g.label(lblElse)
+		if stmt.ElseBody != nil {
+			g.walk(stmt.ElseBody)
+		}
+		g.label(lblEnd)
 	case *parser.NumExp:
 		num, _ := node.(*parser.NumExp)
 		g.push(fmt.Sprintf("%d", num.Val))
@@ -225,6 +241,21 @@ func (g *Generator) setle(rad1 string) {
 	io.WriteString(g.out, s)
 }
 
+func (g *Generator) je(label string) {
+	s := fmt.Sprintf("  je .%s\n", label)
+	io.WriteString(g.out, s)
+}
+
+func (g *Generator) jne(label string) {
+	s := fmt.Sprintf("  jne .%s\n", label)
+	io.WriteString(g.out, s)
+}
+func (g *Generator) jmp(label string) {
+
+	s := fmt.Sprintf("  jmp .%s\n", label)
+	io.WriteString(g.out, s)
+}
+
 func (g *Generator) cmp(rad1, rad2 string) {
 	s := fmt.Sprintf("  cmp %s, %s\n", rad1, rad2)
 	io.WriteString(g.out, s)
@@ -237,6 +268,17 @@ func (g *Generator) movzb(rad1, rad2 string) {
 
 func (g *Generator) ret() {
 	io.WriteString(g.out, "  ret\n")
+}
+
+func (g *Generator) label(name string) {
+	s := fmt.Sprintf(".%s:\n", name)
+	io.WriteString(g.out, s)
+}
+
+func (g *Generator) genLbl() string {
+	s := fmt.Sprintf("L%d", g.lblCnt)
+	g.lblCnt++
+	return s
 }
 
 func getOffset(ident *parser.IdentExp) int {
