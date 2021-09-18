@@ -68,23 +68,27 @@ func TestParseInfix(t *testing.T) {
 		},
 		{
 			"if (a == 10) return b;",
-			"if ((a == 10)) { return b; }",
+			"if ((a == 10)) return b;",
 		},
 		{
 			"if (a = 1 == 10) return b; else return a + 10;",
-			"if ((a = (1 == 10))) { return b; } else { return (a + 10); }",
+			"if ((a = (1 == 10))) return b; else return (a + 10);",
 		},
 		{
 			"while (a == 10) return a;",
-			"while ((a == 10)) { return a; }",
+			"while ((a == 10)) return a;",
 		},
 		{
 			"a = 10; for (i=0; i<10;i = i + 1) a = a + 3;",
-			"(a = 10); for ((i = 0);(i < 10);(i = (i + 1))) { (a = (a + 3)); }",
+			"(a = 10); for ((i = 0);(i < 10);(i = (i + 1))) (a = (a + 3));",
 		},
 		{
 			"i = 0; for (; i<10;) i = i + 1;",
-			"(i = 0); for (;(i < 10);) { (i = (i + 1)); }",
+			"(i = 0); for (;(i < 10);) (i = (i + 1));",
+		},
+		{
+			"if (1) { a; b; c; return d;}",
+			"if (1) { a; b; c; return d; }",
 		},
 	}
 

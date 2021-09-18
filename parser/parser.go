@@ -164,13 +164,11 @@ func (n *IfStmt) String() string {
 	var out bytes.Buffer
 	out.WriteString("if (")
 	out.WriteString(n.Cond.String())
-	out.WriteString(") { ")
+	out.WriteString(") ")
 	out.WriteString(n.IfBody.String())
-	out.WriteString(" }")
 	if n.ElseBody != nil {
-		out.WriteString(" else { ")
+		out.WriteString(" else ")
 		out.WriteString(n.ElseBody.String())
-		out.WriteString(" }")
 	}
 	return out.String()
 }
@@ -193,9 +191,8 @@ func (n *WhileStmt) String() string {
 	var out bytes.Buffer
 	out.WriteString("while (")
 	out.WriteString(n.Cond.String())
-	out.WriteString(") { ")
+	out.WriteString(") ")
 	out.WriteString(n.Body.String())
-	out.WriteString(" }")
 	return out.String()
 }
 
@@ -227,8 +224,33 @@ func (n *ForStmt) String() string {
 	if n.AfterEach != nil {
 		out.WriteString(n.AfterEach.String())
 	}
-	out.WriteString(") { ")
+	out.WriteString(") ")
 	out.WriteString(n.Body.String())
+	return out.String()
+}
+
+/* Block Statement */
+
+type BlockStmt struct {
+	Stmts []Stmt
+	token *token.Token
+}
+
+func (n *BlockStmt) stmtNode() {}
+
+func (n *BlockStmt) TokenLiteral() string {
+	return n.token.Str
+}
+
+func (n *BlockStmt) String() string {
+	var out bytes.Buffer
+	ss := []string{}
+	for _, stmt := range n.Stmts {
+		ss = append(ss, stmt.String())
+	}
+
+	out.WriteString("{ ")
+	out.WriteString(strings.Join(ss, " "))
 	out.WriteString(" }")
 	return out.String()
 }
@@ -257,7 +279,9 @@ func (n *ProgramNode) String() string {
 
 /*
 program   = stmt*
-stmt      = (return expr ";") | (expr ";") | ifstmt | whilestmt
+stmt      = (return expr ";") | (expr ";") | ifstmt | whilestmt | blockstmt
+blockstmt = "{" stmt* "}"
+forstmt   = "for" "(" expr? ";" expr? ";" expr? ")" stmt
 ifstmt    = "if" "(" expr ")" stmt ("else" stmt)?
 whilestmt = "while" "(" expr ")" stmt
 expr      = assign
@@ -319,6 +343,10 @@ func (p *Parser) program() *ProgramNode {
 }
 
 func (p *Parser) stmt() Stmt {
+	if p.cur.Kind == token.LBRACE {
+		return p.blockStmt()
+	}
+
 	if p.cur.Kind == token.FOR {
 		return p.forStmt()
 	}
@@ -339,6 +367,19 @@ func (p *Parser) stmt() Stmt {
 	node := &ExpStmt{Exp: exp}
 	p.expect(p.cur, token.SEMICOLLON)
 	p.nextTkn()
+	return node
+}
+
+func (p *Parser) blockStmt() *BlockStmt {
+	p.expect(p.cur, token.LBRACE)
+	tkn := p.cur
+	p.nextTkn() // {
+	node := &BlockStmt{token: tkn}
+	node.Stmts = []Stmt{}
+	for p.cur.Kind != token.RBRACE {
+		node.Stmts = append(node.Stmts, p.stmt())
+	}
+	p.nextTkn() // }
 	return node
 }
 

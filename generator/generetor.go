@@ -63,8 +63,7 @@ func (g *Generator) walk(node parser.Node) {
 	case *parser.ProgramNode:
 		program, _ := node.(*parser.ProgramNode)
 		for _, stmt := range program.Stmts {
-			node, _ := stmt.(parser.Node)
-			g.walk(node)
+			g.walk(stmt)
 		}
 	case *parser.ExpStmt:
 		stmt, _ := node.(*parser.ExpStmt)
@@ -75,6 +74,11 @@ func (g *Generator) walk(node parser.Node) {
 		g.walk(stmt.Exp)
 		g.pop(RAX)
 		g.epilog()
+	case *parser.BlockStmt:
+		block, _ := node.(*parser.BlockStmt)
+		for _, stmt := range block.Stmts {
+			g.walk(stmt)
+		}
 	case *parser.ForStmt:
 		stmt, _ := node.(*parser.ForStmt)
 		lblBegin := g.genLbl()
