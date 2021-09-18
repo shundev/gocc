@@ -41,7 +41,7 @@ func (g *Generator) Gen() {
 
 // push corresponding address to the top of stack
 func (g *Generator) lvalue(node parser.Node) {
-	ident, ok := node.(*parser.IdentNode)
+	ident, ok := node.(*parser.IdentExp)
 	if !ok {
 		fmt.Fprintf(os.Stderr, "Lvalue must be a ident node, but got: %T, %s\n", node, node.String())
 		os.Exit(1)
@@ -65,33 +65,33 @@ func (g *Generator) walk(node parser.Node) {
 			node, _ := stmt.(parser.Node)
 			g.walk(node)
 		}
-	case *parser.StmtNode:
-		stmt, _ := node.(*parser.StmtNode)
-		g.walk(stmt.Exp())
+	case *parser.ExpStmt:
+		stmt, _ := node.(*parser.ExpStmt)
+		g.walk(stmt.Exp)
 		g.pop(RAX)
-	case *parser.ReturnStmtNode:
-		stmt, _ := node.(*parser.ReturnStmtNode)
-		g.walk(stmt.Exp())
+	case *parser.ReturnStmt:
+		stmt, _ := node.(*parser.ReturnStmt)
+		g.walk(stmt.Exp)
 		g.pop(RAX)
 		g.epilog()
-	case *parser.NumNode:
-		num, _ := node.(*parser.NumNode)
+	case *parser.NumExp:
+		num, _ := node.(*parser.NumExp)
 		g.push(fmt.Sprintf("%d", num.Val))
-	case *parser.IdentNode:
+	case *parser.IdentExp:
 		// 変数呼び出し
-		ident, _ := node.(*parser.IdentNode)
+		ident, _ := node.(*parser.IdentExp)
 		offset := getOffset(ident)
 		g.mov(RAX, RBP)
 		g.sub(RAX, fmt.Sprintf("%d", offset))
 		g.mov(RAX, "["+RAX+"]")
 		g.push(RAX)
-	case *parser.UnaryNode:
+	case *parser.UnaryExp:
 		// Regard unary as infix for easy development(i.e. -1 -> 0 - 1)
-		unary, _ := node.(*parser.UnaryNode)
+		unary, _ := node.(*parser.UnaryExp)
 		infix := parser.UnaryToInfix(unary)
 		g.walk(infix)
-	case *parser.InfixNode:
-		infix, _ := node.(*parser.InfixNode)
+	case *parser.InfixExp:
+		infix, _ := node.(*parser.InfixExp)
 		if infix.Op == "=" {
 			g.lvalue(infix.Left)
 			g.walk(infix.Right)
@@ -239,7 +239,7 @@ func (g *Generator) ret() {
 	io.WriteString(g.out, "  ret\n")
 }
 
-func getOffset(ident *parser.IdentNode) int {
+func getOffset(ident *parser.IdentExp) int {
 	argSize := 8
 	offset := -1
 	mapping := "abcdefghijklmnopqrstuvwxyz"

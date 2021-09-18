@@ -10,37 +10,51 @@ import (
 
 type Node interface {
 	String() string
-	Token() *token.Token
+	TokenLiteral() string
 }
 
-type TokenAccessor struct {
-	token *token.Token
+type Stmt interface {
+	Node
+	stmtNode()
 }
 
-func (n *TokenAccessor) Token() *token.Token {
-	return n.token
+type Exp interface {
+	Node
+	expNode()
 }
 
 /* Num */
 
-type NumNode struct {
-	Val int
-	TokenAccessor
+type NumExp struct {
+	Val   int
+	token *token.Token
 }
 
-func (n *NumNode) String() string {
+func (n *NumExp) expNode() {}
+
+func (n *NumExp) TokenLiteral() string {
+	return n.token.Str
+}
+
+func (n *NumExp) String() string {
 	return fmt.Sprintf("%d", n.Val)
 }
 
 /* Infix */
 
-type InfixNode struct {
-	Left, Right Node
+type InfixExp struct {
+	Left, Right Exp
 	Op          string
-	TokenAccessor
+	token       *token.Token
 }
 
-func (n *InfixNode) String() string {
+func (n *InfixExp) expNode() {}
+
+func (n *InfixExp) TokenLiteral() string {
+	return n.token.Str
+}
+
+func (n *InfixExp) String() string {
 	var out bytes.Buffer
 	out.WriteString("(")
 	out.WriteString(n.Left.String())
@@ -52,13 +66,19 @@ func (n *InfixNode) String() string {
 
 /* Unary */
 
-type UnaryNode struct {
-	Right Node
+type UnaryExp struct {
+	Right Exp
 	Op    string
-	TokenAccessor
+	token *token.Token
 }
 
-func (n *UnaryNode) String() string {
+func (n *UnaryExp) expNode() {}
+
+func (n *UnaryExp) TokenLiteral() string {
+	return n.token.Str
+}
+
+func (n *UnaryExp) String() string {
 	var out bytes.Buffer
 	out.WriteString("(")
 	out.WriteString(n.Op)
@@ -69,49 +89,89 @@ func (n *UnaryNode) String() string {
 
 /* Identifier */
 
-type IdentNode struct {
-	Name string
-	TokenAccessor
+type IdentExp struct {
+	Name  string
+	token *token.Token
 }
 
-func (n *IdentNode) String() string {
+func (n *IdentExp) expNode() {}
+
+func (n *IdentExp) TokenLiteral() string {
+	return n.token.Str
+}
+
+func (n *IdentExp) String() string {
 	return n.Name
 }
 
 /* Statement */
 
-type Stmt interface {
-	Exp() Node
-	String() string
+type ExpStmt struct {
+	Exp   Exp
+	token *token.Token
 }
 
-type StmtNode struct {
-	exp Node
-	TokenAccessor
+func (n *ExpStmt) stmtNode() {}
+
+func (n *ExpStmt) TokenLiteral() string {
+	return n.token.Str
 }
 
-func (n *StmtNode) String() string {
+func (n *ExpStmt) String() string {
 	var out bytes.Buffer
-	out.WriteString(n.exp.String())
+	out.WriteString(n.Exp.String())
 	out.WriteString(";")
 	return out.String()
 }
 
-func (n *StmtNode) Exp() Node {
-	return n.exp
-}
-
 /* Return Statement */
 
-type ReturnStmtNode struct {
-	StmtNode
+type ReturnStmt struct {
+	Exp   Exp
+	token *token.Token
 }
 
-func (n *ReturnStmtNode) String() string {
+func (n *ReturnStmt) stmtNode() {}
+
+func (n *ReturnStmt) TokenLiteral() string {
+	return n.token.Str
+}
+
+func (n *ReturnStmt) String() string {
 	var out bytes.Buffer
 	out.WriteString("return ")
-	out.WriteString(n.exp.String())
+	out.WriteString(n.Exp.String())
 	out.WriteString(";")
+	return out.String()
+}
+
+/* If Statement */
+
+type IfStmt struct {
+	Cond     Exp
+	IfBody   Stmt
+	ElseBody Stmt
+	token    *token.Token
+}
+
+func (n *IfStmt) stmtNode() {}
+
+func (n *IfStmt) TokenLiteral() string {
+	return n.token.Str
+}
+
+func (n *IfStmt) String() string {
+	var out bytes.Buffer
+	out.WriteString("if (")
+	out.WriteString(n.Cond.String())
+	out.WriteString(") { ")
+	out.WriteString(n.IfBody.String())
+	out.WriteString(" }")
+	if n.ElseBody != nil {
+		out.WriteString(" else { ")
+		out.WriteString(n.IfBody.String())
+		out.WriteString(" }")
+	}
 	return out.String()
 }
 
@@ -119,7 +179,14 @@ func (n *ReturnStmtNode) String() string {
 
 type ProgramNode struct {
 	Stmts []Stmt
-	TokenAccessor
+}
+
+func (n *ProgramNode) TokenLiteral() string {
+	if len(n.Stmts) > 0 {
+		return n.Stmts[0].TokenLiteral()
+	}
+
+	return ""
 }
 
 func (n *ProgramNode) String() string {
@@ -132,7 +199,8 @@ func (n *ProgramNode) String() string {
 
 /*
 program = stmt*
-stmt    = (return expr) | expr ";"
+stmt    = (return expr ";") | (expr ";") | ifstmt
+ifstmt  = "if" "(" expr ")" stmt ("else" stmt)?
 expr    = assign
 assign  = eq ("=" assign)?
 eq      = lg ("==" lg)?
@@ -161,14 +229,14 @@ func (p *Parser) Parse() *ProgramNode {
 	return p.program()
 }
 
-func UnaryToInfix(unary *UnaryNode) Node {
+func UnaryToInfix(unary *UnaryExp) Node {
 	right := unary.Right
-	left := &NumNode{Val: 0}
-	infix := &InfixNode{Left: left, Right: right, Op: unary.Op}
+	left := &NumExp{Val: 0}
+	infix := &InfixExp{Left: left, Right: right, Op: unary.Op}
 	return infix
 }
 
-func Swap(infix *InfixNode) Node {
+func Swap(infix *InfixExp) Node {
 	right := infix.Right
 	left := infix.Left
 	infix.Right = left
@@ -195,33 +263,30 @@ func (p *Parser) stmt() Stmt {
 	if p.cur.Kind == token.RETURN {
 		p.nextTkn()
 		exp := p.expr()
-		node := &ReturnStmtNode{
-			StmtNode: StmtNode{
-				exp: exp,
-			},
+		node := &ReturnStmt{
+			Exp: exp,
 		}
 		p.expect(p.cur, token.SEMICOLLON)
 		p.nextTkn()
 		return node
 	}
 	exp := p.expr()
-	node := &StmtNode{exp: exp}
+	node := &ExpStmt{Exp: exp}
 	p.expect(p.cur, token.SEMICOLLON)
 	p.nextTkn()
 	return node
 }
 
-func (p *Parser) expr() Node {
+func (p *Parser) expr() Exp {
 	return p.assign()
 }
 
-func (p *Parser) assign() Node {
+func (p *Parser) assign() Exp {
 	node := p.eq()
 
 	if p.cur.Kind == token.ASSIGN {
-		infix := &InfixNode{
-			Left: node, Right: nil, Op: p.cur.Str,
-			TokenAccessor: TokenAccessor{token: p.cur},
+		infix := &InfixExp{
+			Left: node, Right: nil, Op: p.cur.Str, token: p.cur,
 		}
 		p.nextTkn() // =
 		infix.Right = p.assign()
@@ -231,13 +296,12 @@ func (p *Parser) assign() Node {
 	return node
 }
 
-func (p *Parser) eq() Node {
+func (p *Parser) eq() Exp {
 	node := p.lg()
 
 	if p.cur.Kind == token.EQ || p.cur.Kind == token.NEQ {
-		infix := &InfixNode{
-			Left: node, Right: nil, Op: p.cur.Str,
-			TokenAccessor: TokenAccessor{token: p.cur},
+		infix := &InfixExp{
+			Left: node, Right: nil, Op: p.cur.Str, token: p.cur,
 		}
 		p.nextTkn()
 		infix.Right = p.lg()
@@ -247,7 +311,7 @@ func (p *Parser) eq() Node {
 	return node
 }
 
-func (p *Parser) lg() Node {
+func (p *Parser) lg() Exp {
 	node := p.add()
 
 	switch p.cur.Kind {
@@ -258,9 +322,8 @@ func (p *Parser) lg() Node {
 	case token.LTE:
 		fallthrough
 	case token.GTE:
-		infix := &InfixNode{
-			Left: node, Right: nil, Op: p.cur.Str,
-			TokenAccessor: TokenAccessor{token: p.cur},
+		infix := &InfixExp{
+			Left: node, Right: nil, Op: p.cur.Str, token: p.cur,
 		}
 		p.nextTkn()
 		infix.Right = p.add()
@@ -270,7 +333,7 @@ func (p *Parser) lg() Node {
 	return node
 }
 
-func (p *Parser) add() Node {
+func (p *Parser) add() Exp {
 	node := p.mul()
 
 	for p.cur.Kind == token.PLUS || p.cur.Kind == token.MINUS {
@@ -278,9 +341,8 @@ func (p *Parser) add() Node {
 		case token.PLUS:
 			fallthrough
 		case token.MINUS:
-			infix := &InfixNode{
-				Left: node, Right: nil, Op: p.cur.Str,
-				TokenAccessor: TokenAccessor{token: p.cur},
+			infix := &InfixExp{
+				Left: node, Right: nil, Op: p.cur.Str, token: p.cur,
 			}
 			p.nextTkn()
 			infix.Right = p.mul()
@@ -294,7 +356,7 @@ func (p *Parser) add() Node {
 	return node
 }
 
-func (p *Parser) mul() Node {
+func (p *Parser) mul() Exp {
 	node := p.unary()
 
 	for p.cur.Kind == token.ASTERISK || p.cur.Kind == token.SLASH {
@@ -302,9 +364,8 @@ func (p *Parser) mul() Node {
 		case token.ASTERISK:
 			fallthrough
 		case token.SLASH:
-			infix := &InfixNode{
-				Left: node, Right: nil, Op: p.cur.Str,
-				TokenAccessor: TokenAccessor{token: p.cur},
+			infix := &InfixExp{
+				Left: node, Right: nil, Op: p.cur.Str, token: p.cur,
 			}
 			p.nextTkn()
 			infix.Right = p.unary()
@@ -318,15 +379,15 @@ func (p *Parser) mul() Node {
 	return node
 }
 
-func (p *Parser) unary() Node {
+func (p *Parser) unary() Exp {
 	switch p.cur.Kind {
 	case token.PLUS:
 		fallthrough
 	case token.MINUS:
-		node := &UnaryNode{
-			Right:         nil,
-			Op:            p.cur.Str,
-			TokenAccessor: TokenAccessor{token: p.cur},
+		node := &UnaryExp{
+			Right: nil,
+			Op:    p.cur.Str,
+			token: p.cur,
 		}
 		p.nextTkn()
 		node.Right = p.primary()
@@ -337,7 +398,7 @@ func (p *Parser) unary() Node {
 	}
 }
 
-func (p *Parser) primary() Node {
+func (p *Parser) primary() Exp {
 	p.expect(p.cur, token.NUM, token.IDENT, token.LPAREN)
 	switch p.cur.Kind {
 	case token.NUM:
@@ -357,21 +418,19 @@ func (p *Parser) primary() Node {
 	}
 }
 
-func (p *Parser) num() Node {
+func (p *Parser) num() Exp {
 	p.expect(p.cur, token.NUM)
-	node := &NumNode{
-		Val:           p.cur.Val,
-		TokenAccessor: TokenAccessor{token: p.cur},
+	node := &NumExp{
+		Val: p.cur.Val, token: p.cur,
 	}
 	p.nextTkn()
 	return node
 }
 
-func (p *Parser) ident() Node {
+func (p *Parser) ident() Exp {
 	p.expect(p.cur, token.IDENT)
-	node := &IdentNode{
-		Name:          p.cur.Str,
-		TokenAccessor: TokenAccessor{token: p.cur},
+	node := &IdentExp{
+		Name: p.cur.Str, token: p.cur,
 	}
 	p.nextTkn()
 	return node

@@ -66,6 +66,10 @@ func TestParseInfix(t *testing.T) {
 			"a = 10;return a; return 20;",
 			"(a = 10); return a; return 20;",
 		},
+		//{
+		//	"if (a = 1 == 10) {return b;} else {return a + 10;}",
+		//	"if (((a = 1) == 10)) { return b; } else { return (a + 10); }",
+		//},
 	}
 
 	for i, tt := range tests {
