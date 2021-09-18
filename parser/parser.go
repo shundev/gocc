@@ -169,7 +169,7 @@ func (n *IfStmt) String() string {
 	out.WriteString(" }")
 	if n.ElseBody != nil {
 		out.WriteString(" else { ")
-		out.WriteString(n.IfBody.String())
+		out.WriteString(n.ElseBody.String())
 		out.WriteString(" }")
 	}
 	return out.String()
@@ -260,6 +260,25 @@ func (p *Parser) program() *ProgramNode {
 }
 
 func (p *Parser) stmt() Stmt {
+	if p.cur.Kind == token.IF {
+		p.nextTkn()
+		p.expect(p.cur, token.LPAREN)
+		p.nextTkn()
+		exp := p.expr()
+		p.expect(p.cur, token.RPAREN)
+		p.nextTkn()
+		ifBody := p.stmt()
+		node := &IfStmt{
+			Cond:   exp,
+			IfBody: ifBody,
+		}
+		if p.cur.Kind == token.ELSE {
+			p.nextTkn()
+			node.ElseBody = p.stmt()
+		}
+		return node
+	}
+
 	if p.cur.Kind == token.RETURN {
 		p.nextTkn()
 		exp := p.expr()
