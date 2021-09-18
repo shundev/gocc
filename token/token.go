@@ -194,11 +194,20 @@ func isDigit(ch rune) bool {
 }
 
 func isIdentStart(ch rune) bool {
-	return 'a' <= ch && ch <= 'z'
+	if 'a' <= ch && ch <= 'z' {
+		return true
+	}
+	if 'A' <= ch && ch <= 'Z' {
+		return true
+	}
+	if ch == '_' {
+		return true
+	}
+	return false
 }
 
 func isIdent(ch rune) bool {
-	if 'a' <= ch && ch <= 'z' {
+	if isIdentStart(ch) {
 		return true
 	}
 
