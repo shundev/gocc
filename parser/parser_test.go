@@ -42,6 +42,10 @@ func TestParseInfix(t *testing.T) {
 			"ab1000 = 999",
 			"(ab1000 = 999)",
 		},
+		{
+			"a = b = c = 1",
+			"(a = (b = (c = 1)))",
+		},
 	}
 
 	for i, tt := range tests {

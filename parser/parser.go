@@ -79,7 +79,7 @@ func (n *IdentNode) String() string {
 
 /*
 expr    = assign
-assign  = (ident "=")? eq
+assign  = eq ("=" assign)?
 eq      = lg ("==" lg)?
 lg      = add ("<" add)?
 add     = mul ("+" mul | "-" mul)*
@@ -132,24 +132,19 @@ func (p *Parser) expr() Node {
 }
 
 func (p *Parser) assign() Node {
-	if p.cur.Kind == token.IDENT {
-		name := p.cur.Str
-		p.nextTkn()
-		p.expect(p.cur, token.ASSIGN)
-		left := &IdentNode{
-			Name:          name,
-			TokenAccessor: TokenAccessor{token: p.cur},
-		}
+	node := p.eq()
+
+	if p.cur.Kind == token.ASSIGN {
 		infix := &InfixNode{
-			Left: left, Right: nil, Op: p.cur.Str,
+			Left: node, Right: nil, Op: p.cur.Str,
 			TokenAccessor: TokenAccessor{token: p.cur},
 		}
-		p.nextTkn()
-		infix.Right = p.eq()
-		return infix
+		p.nextTkn() // =
+		infix.Right = p.assign()
+		node = infix
 	}
 
-	return p.eq()
+	return node
 }
 
 func (p *Parser) eq() Node {
@@ -259,10 +254,12 @@ func (p *Parser) unary() Node {
 }
 
 func (p *Parser) primary() Node {
-	p.expect(p.cur, token.NUM, token.LPAREN)
+	p.expect(p.cur, token.NUM, token.IDENT, token.LPAREN)
 	switch p.cur.Kind {
 	case token.NUM:
 		return p.num()
+	case token.IDENT:
+		return p.ident()
 	case token.LPAREN:
 		p.nextTkn() // (
 		n := p.expr()
@@ -280,6 +277,16 @@ func (p *Parser) num() Node {
 	p.expect(p.cur, token.NUM)
 	node := &NumNode{
 		Val:           p.cur.Val,
+		TokenAccessor: TokenAccessor{token: p.cur},
+	}
+	p.nextTkn()
+	return node
+}
+
+func (p *Parser) ident() Node {
+	p.expect(p.cur, token.IDENT)
+	node := &IdentNode{
+		Name:          p.cur.Str,
 		TokenAccessor: TokenAccessor{token: p.cur},
 	}
 	p.nextTkn()
