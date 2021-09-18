@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"go9cc/token"
 	"os"
+	"strings"
 )
 
 type Node interface {
@@ -77,6 +78,32 @@ func (n *IdentNode) String() string {
 	return n.Name
 }
 
+/* Statement */
+
+type StmtNode struct {
+	Exp Node
+	TokenAccessor
+}
+
+func (n *StmtNode) String() string {
+	return n.Exp.String()
+}
+
+/* Program */
+
+type ProgramNode struct {
+	Stmts []*StmtNode
+	TokenAccessor
+}
+
+func (n *ProgramNode) String() string {
+	ss := []string{}
+	for _, stmt := range n.Stmts {
+		ss = append(ss, stmt.String())
+	}
+	return strings.Join(ss, "; ")
+}
+
 /*
 expr    = assign
 assign  = eq ("=" assign)?
@@ -103,7 +130,7 @@ func New(tzer *token.Tokenizer) *Parser {
 }
 
 func (p *Parser) Parse() Node {
-	return p.expr()
+	return p.program()
 }
 
 func UnaryToInfix(unary *UnaryNode) Node {
@@ -125,6 +152,26 @@ func (p *Parser) nextTkn() {
 	if p.cur.Kind != token.EOF {
 		p.cur = p.cur.Next
 	}
+}
+
+func (p *Parser) program() Node {
+	node := &ProgramNode{}
+	node.Stmts = []*StmtNode{}
+	for p.cur.Kind != token.EOF {
+		node.Stmts = append(node.Stmts, p.stmt())
+		if p.cur.Kind != token.SEMICOLLON {
+			break
+		}
+
+		p.nextTkn()
+	}
+	return node
+}
+
+func (p *Parser) stmt() *StmtNode {
+	exp := p.expr()
+	node := &StmtNode{Exp: exp}
+	return node
 }
 
 func (p *Parser) expr() Node {

@@ -10,23 +10,24 @@ import (
 )
 
 const (
-	PLUS     = "+"
-	MINUS    = "-"
-	ASTERISK = "*"
-	SLASH    = "/"
-	LPAREN   = "("
-	RPAREN   = ")"
-	ASSIGN   = "="
-	EQ       = "=="
-	NEQ      = "!="
-	LT       = "<"
-	LTE      = "<="
-	GT       = ">"
-	GTE      = ">="
-	NUM      = "NUM"
-	IDENT    = "IDENT"
-	EOF      = "EOF"
-	START    = "START"
+	PLUS       = "+"
+	MINUS      = "-"
+	ASTERISK   = "*"
+	SLASH      = "/"
+	LPAREN     = "("
+	RPAREN     = ")"
+	ASSIGN     = "="
+	EQ         = "=="
+	NEQ        = "!="
+	LT         = "<"
+	LTE        = "<="
+	GT         = ">"
+	GTE        = ">="
+	NUM        = "NUM"
+	IDENT      = "IDENT"
+	SEMICOLLON = ";"
+	EOF        = "EOF"
+	START      = "START"
 )
 
 type TokenKind string
@@ -153,9 +154,11 @@ func (t *Tokenizer) Tokenize() *Token {
 			t.idx--
 			cur = newToken(NEQ, cur, 0, "!=", t.idx)
 			t.idx += 2
+		case ';':
+			cur = newToken(SEMICOLLON, cur, 0, ";", t.idx)
+			t.idx++
 		case 0:
-			token := newToken(EOF, cur, 0, "", t.idx)
-			cur = token
+			cur = newToken(EOF, cur, 0, "", t.idx)
 			return head.Next
 		default:
 			if isDigit(t.curCh()) {

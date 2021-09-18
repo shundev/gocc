@@ -46,6 +46,14 @@ func TestParseInfix(t *testing.T) {
 			"a = b = c = 1",
 			"(a = (b = (c = 1)))",
 		},
+		{
+			"a = b = 1; a + b;",
+			"(a = (b = 1)); (a + b)",
+		},
+		{
+			"",
+			"",
+		},
 	}
 
 	for i, tt := range tests {
