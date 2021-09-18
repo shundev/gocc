@@ -32,6 +32,7 @@ const (
 	IF         = "IF"
 	ELSE       = "ELSE"
 	WHILE      = "WHILE"
+	FOR        = "FOR"
 	DO         = "DO"
 	EOF        = "EOF"
 	START      = "START"
@@ -182,6 +183,9 @@ func (t *Tokenizer) Tokenize() *Token {
 				t.idx = newIdx
 			} else if newIdx, ok := tryKeyword(t.code, t.idx, "else"); ok {
 				cur = newToken(ELSE, cur, 0, "else", t.idx)
+				t.idx = newIdx
+			} else if newIdx, ok := tryKeyword(t.code, t.idx, "for"); ok {
+				cur = newToken(FOR, cur, 0, "for", t.idx)
 				t.idx = newIdx
 			} else if newIdx, ok := tryKeyword(t.code, t.idx, "while"); ok {
 				cur = newToken(WHILE, cur, 0, "while", t.idx)

@@ -75,6 +75,26 @@ func (g *Generator) walk(node parser.Node) {
 		g.walk(stmt.Exp)
 		g.pop(RAX)
 		g.epilog()
+	case *parser.ForStmt:
+		stmt, _ := node.(*parser.ForStmt)
+		lblBegin := g.genLbl()
+		lblEnd := g.genLbl()
+		if stmt.Init != nil {
+			g.walk(stmt.Init)
+		}
+		g.label(lblBegin)
+		if stmt.Cond != nil {
+			g.walk(stmt.Cond)
+			g.pop(RAX)
+			g.cmp(RAX, "0")
+			g.je(lblEnd) // RAXが0(false)ならforの外にジャンプ
+		}
+		g.walk(stmt.Body)
+		if stmt.AfterEach != nil {
+			g.walk(stmt.AfterEach)
+		}
+		g.jmp(lblBegin)
+		g.label(lblEnd)
 	case *parser.WhileStmt:
 		stmt, _ := node.(*parser.WhileStmt)
 		lblBegin := g.genLbl()

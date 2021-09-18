@@ -199,6 +199,40 @@ func (n *WhileStmt) String() string {
 	return out.String()
 }
 
+/* For Statement */
+
+type ForStmt struct {
+	Init, Cond, AfterEach Exp
+	Body                  Stmt
+	token                 *token.Token
+}
+
+func (n *ForStmt) stmtNode() {}
+
+func (n *ForStmt) TokenLiteral() string {
+	return n.token.Str
+}
+
+func (n *ForStmt) String() string {
+	var out bytes.Buffer
+	out.WriteString("for (")
+	if n.Init != nil {
+		out.WriteString(n.Init.String())
+	}
+	out.WriteString(";")
+	if n.Cond != nil {
+		out.WriteString(n.Cond.String())
+	}
+	out.WriteString(";")
+	if n.AfterEach != nil {
+		out.WriteString(n.AfterEach.String())
+	}
+	out.WriteString(") { ")
+	out.WriteString(n.Body.String())
+	out.WriteString(" }")
+	return out.String()
+}
+
 /* Program */
 
 type ProgramNode struct {
@@ -285,6 +319,10 @@ func (p *Parser) program() *ProgramNode {
 }
 
 func (p *Parser) stmt() Stmt {
+	if p.cur.Kind == token.FOR {
+		return p.forStmt()
+	}
+
 	if p.cur.Kind == token.WHILE {
 		return p.whileStmt()
 	}
@@ -301,6 +339,36 @@ func (p *Parser) stmt() Stmt {
 	node := &ExpStmt{Exp: exp}
 	p.expect(p.cur, token.SEMICOLLON)
 	p.nextTkn()
+	return node
+}
+
+func (p *Parser) forStmt() *ForStmt {
+	p.expect(p.cur, token.FOR)
+	tkn := p.cur
+	node := &ForStmt{token: tkn}
+	p.nextTkn()
+	p.expect(p.cur, token.LPAREN)
+	p.nextTkn()
+
+	if p.cur.Kind != token.SEMICOLLON {
+		node.Init = p.expr()
+	}
+	p.expect(p.cur, token.SEMICOLLON)
+	p.nextTkn()
+
+	if p.cur.Kind != token.SEMICOLLON {
+		node.Cond = p.expr()
+	}
+	p.expect(p.cur, token.SEMICOLLON)
+	p.nextTkn()
+
+	if p.cur.Kind != token.RPAREN {
+		node.AfterEach = p.expr()
+	}
+	p.expect(p.cur, token.RPAREN)
+	p.nextTkn()
+
+	node.Body = p.stmt()
 	return node
 }
 
