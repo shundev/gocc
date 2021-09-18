@@ -32,26 +32,11 @@ func New(p *parser.Parser, out io.Writer) *Generator {
 
 func (g *Generator) Gen() {
 	g.header()
+	defer g.ret()
 
 	node := g.parser.Parse()
-	g.prolog()
 	g.walk(node)
-	g.epilog()
-}
-
-// push corresponding address to the top of stack
-func (g *Generator) lvalue(node parser.Node) {
-	ident, ok := node.(*parser.IdentNode)
-	if !ok {
-		fmt.Fprintf(os.Stderr, "Lvalue must be a ident node, but got: %T, %s\n", node, node.String())
-		os.Exit(1)
-	}
-
-	offset := getOffset(ident)
-
-	g.mov(RAX, RBP)
-	g.sub(RAX, fmt.Sprintf("%d", offset))
-	g.push(RAX)
+	g.pop(RAX)
 }
 
 /*
@@ -67,17 +52,9 @@ func (g *Generator) walk(node parser.Node) {
 	case *parser.StmtNode:
 		stmt, _ := node.(*parser.StmtNode)
 		g.walk(stmt.Exp)
-		g.pop(RAX)
 	case *parser.NumNode:
 		num, _ := node.(*parser.NumNode)
 		g.push(fmt.Sprintf("%d", num.Val))
-	case *parser.IdentNode:
-		ident, _ := node.(*parser.IdentNode)
-		offset := getOffset(ident)
-		g.mov(RAX, RBP)
-		g.sub(RAX, fmt.Sprintf("%d", offset))
-		g.mov(RAX, "["+RAX+"]")
-		g.push(RAX)
 	case *parser.UnaryNode:
 		// Regard unary as infix for easy development(i.e. -1 -> 0 - 1)
 		unary, _ := node.(*parser.UnaryNode)
@@ -85,16 +62,6 @@ func (g *Generator) walk(node parser.Node) {
 		g.walk(infix)
 	case *parser.InfixNode:
 		infix, _ := node.(*parser.InfixNode)
-		if infix.Op == "=" {
-			g.lvalue(infix.Left)
-			g.walk(infix.Right)
-			g.pop(RDI)
-			g.pop(RAX)
-			g.mov("["+RAX+"]", RDI) // Write RDI to memory RAX
-			g.push(RDI)             // eval a = 2 to 2
-			return
-		}
-
 		g.walk(infix.Left)
 		g.walk(infix.Right)
 
@@ -139,7 +106,7 @@ func (g *Generator) walk(node parser.Node) {
 		}
 		g.push(RAX)
 	default:
-		fmt.Fprintf(os.Stderr, "Unknown node: %T, %s\n", node, node.String())
+		fmt.Fprintf(os.Stderr, "Unknown node: %T\n", node)
 		os.Exit(1)
 	}
 }
@@ -157,9 +124,7 @@ func (g *Generator) prolog() {
 }
 
 func (g *Generator) epilog() {
-	g.mov(RSP, RBP)
-	g.pop(RBP)
-	g.ret()
+
 }
 
 func (g *Generator) mov(rad string, val string) {
@@ -230,22 +195,4 @@ func (g *Generator) movzb(rad1, rad2 string) {
 
 func (g *Generator) ret() {
 	io.WriteString(g.out, "  ret\n")
-}
-
-func getOffset(ident *parser.IdentNode) int {
-	argSize := 8
-	offset := -1
-	mapping := "abcdefghijklmnopqrstuvwxyz"
-	for i, r := range mapping {
-		if string(r) == ident.Name {
-			offset = i
-		}
-	}
-
-	if offset == -1 {
-		fmt.Fprintf(os.Stderr, "Invalid ident.Name: %s\n", ident.Name)
-		os.Exit(1)
-	}
-	offset++
-	return offset * argSize
 }

@@ -8,86 +8,21 @@ import (
 )
 
 func TestGenerator(t *testing.T) {
-	want1 := `.intel_syntax noprefix
+	want := `.intel_syntax noprefix
 .globl main
 main:
-  push 5
-  push 5
-  pop rdi
-  pop rax
-  add rax, rdi
-  push rax
-  push 5
-  pop rdi
-  pop rax
-  imul rax, rdi
-  push rax
-  push 2
-  pop rdi
-  pop rax
-  cqo
-  idiv rdi
-  push rax
-  pop rax
+  push rbp
+  mov rbp, rsp
+  sub rsp, 208
+  mov rsp, rbp
+  pop rbp
   ret
 `
-	want2 := `.intel_syntax noprefix
-.globl main
-main:
-  push 5
-  push 5
-  pop rdi
-  pop rax
-  imul rax, rdi
-  push rax
-  push 5
-  push 2
-  pop rdi
-  pop rax
-  imul rax, rdi
-  push rax
-  pop rdi
-  pop rax
-  cmp rax, rdi
-  sete al
-  movzb rax, al
-  push rax
-  pop rax
-  ret
-`
-
-	want3 := `.intel_syntax noprefix
-.globl main
-main:
-  push 5
-  push 5
-  pop rdi
-  pop rax
-  imul rax, rdi
-  push rax
-  push 5
-  push 2
-  pop rdi
-  pop rax
-  imul rax, rdi
-  push rax
-  pop rdi
-  pop rax
-  cmp rax, rdi
-  setne al
-  movzb rax, al
-  push rax
-  pop rax
-  ret
-`
-
 	tests := []struct {
 		input string
 		want  string
 	}{
-		{" (5 + 5) * 5 / 2", want1},
-		{"(5 * 5) == (5 * 2)", want2},
-		{"(5 * 5) != (5 * 2)", want3},
+		{"", want},
 	}
 
 	for i, tt := range tests {

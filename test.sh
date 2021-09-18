@@ -29,5 +29,9 @@ assert 0 "(5 * 5) == (5 * 2)"
 assert 1 "(5 * 5) != (5 * 2)"
 assert 0 "5 < 5 == 5 > 2"
 assert 1 "5 <= 5 == 5 >= 2"
+assert 7 "a = 7;"
+assert 70 "a = 70; a"
+assert 9 "a = 3; b = 6; a + b;"
+assert 18 "c = 9; b = 6; a = 3; a + b + c;"
 
 echo OK
