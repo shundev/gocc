@@ -21,9 +21,11 @@ const (
 )
 
 type Generator struct {
-	parser *parser.Parser
-	out    io.Writer
-	lblCnt int
+	parser    *parser.Parser
+	out       io.Writer
+	lblCnt    int
+	offsets   map[string]int
+	stackSize int
 }
 
 func New(p *parser.Parser, out io.Writer) *Generator {
@@ -35,6 +37,9 @@ func (g *Generator) Gen() {
 	g.header()
 
 	node := g.parser.Parse()
+	g.offsets = node.Offsets
+	g.stackSize = node.StackSize()
+
 	g.prolog()
 	g.walk(node)
 	g.epilog()
@@ -48,7 +53,7 @@ func (g *Generator) lvalue(node parser.Node) {
 		os.Exit(1)
 	}
 
-	offset := getOffset(ident)
+	offset := g.getOffset(ident)
 
 	g.mov(RAX, RBP)
 	g.sub(RAX, fmt.Sprintf("%d", offset))
@@ -132,7 +137,7 @@ func (g *Generator) walk(node parser.Node) {
 	case *parser.IdentExp:
 		// 変数呼び出し
 		ident, _ := node.(*parser.IdentExp)
-		offset := getOffset(ident)
+		offset := g.getOffset(ident)
 		g.mov(RAX, RBP)
 		g.sub(RAX, fmt.Sprintf("%d", offset))
 		g.mov(RAX, "["+RAX+"]")
@@ -212,11 +217,9 @@ func (g *Generator) header() {
 }
 
 func (g *Generator) prolog() {
-	numArgs := 26
-	argSize := 8
 	g.push(RBP)
 	g.mov(RBP, RSP)
-	g.sub(RSP, fmt.Sprintf("%d", numArgs*argSize))
+	g.sub(RSP, fmt.Sprintf("%d", g.stackSize))
 }
 
 func (g *Generator) epilog() {
@@ -328,20 +331,12 @@ func (g *Generator) genLbl() string {
 	return s
 }
 
-func getOffset(ident *parser.IdentExp) int {
-	argSize := 8
-	offset := -1
-	mapping := "abcdefghijklmnopqrstuvwxyz"
-	for i, r := range mapping {
-		if string(r) == ident.Name {
-			offset = i
-		}
-	}
-
-	if offset == -1 {
+func (g *Generator) getOffset(ident *parser.IdentExp) int {
+	offset, ok := g.offsets[ident.Name]
+	if !ok {
 		fmt.Fprintf(os.Stderr, "Invalid ident.Name: %s\n", ident.Name)
 		os.Exit(1)
 	}
-	offset++
-	return offset * argSize
+
+	return offset
 }

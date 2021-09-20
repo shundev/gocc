@@ -13,7 +13,7 @@ func TestGenerator(t *testing.T) {
 main:
   push rbp
   mov rbp, rsp
-  sub rsp, 208
+  sub rsp, 0
   mov rsp, rbp
   pop rbp
   ret

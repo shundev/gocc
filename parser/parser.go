@@ -279,7 +279,19 @@ func (n *BlockStmt) String() string {
 /* Program */
 
 type ProgramNode struct {
-	Stmts []Stmt
+	Stmts   []Stmt
+	Offsets map[string]int
+}
+
+func (n *ProgramNode) StackSize() int {
+	max := 0
+	for _, v := range n.Offsets {
+		if v > max {
+			max = v
+		}
+	}
+
+	return alignTo(max, 16)
 }
 
 func (n *ProgramNode) TokenLiteral() string {
@@ -321,17 +333,22 @@ funccall  = ident "(" ")"
 type Parser struct {
 	tzer      *token.Tokenizer
 	head, cur *token.Token
+	offsetCnt int
+	offsets   map[string]int
 }
 
 func New(tzer *token.Tokenizer) *Parser {
 	parser := &Parser{tzer: tzer}
 	parser.head = parser.tzer.Tokenize()
 	parser.cur = parser.head
+	parser.offsets = make(map[string]int)
 	return parser
 }
 
 func (p *Parser) Parse() *ProgramNode {
-	return p.program()
+	node := p.program()
+	node.Offsets = p.offsets
+	return node
 }
 
 func UnaryToInfix(unary *UnaryExp) *InfixExp {
@@ -503,6 +520,14 @@ func (p *Parser) assign() Exp {
 		p.nextTkn() // =
 		infix.Right = p.assign()
 		node = infix
+
+		// TODO: duplicate left value check
+		if ident, ok := infix.Left.(*IdentExp); ok {
+			if _, exists := p.offsets[ident.Name]; !exists {
+				p.offsets[ident.Name] = p.offsetCnt
+				p.offsetCnt += 8
+			}
+		}
 	}
 
 	return node
@@ -660,4 +685,8 @@ func (p *Parser) ident() Exp {
 
 func (p *Parser) expect(token *token.Token, kinds ...token.TokenKind) {
 	p.tzer.Expect(token, kinds...)
+}
+
+func alignTo(n, align int) int {
+	return (n + align - 1) / align * align
 }
