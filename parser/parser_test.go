@@ -94,6 +94,14 @@ func TestParseInfix(t *testing.T) {
 			"foo    ( );",
 			"foo ();",
 		},
+		{
+			"--a;",
+			"(-(-a));",
+		},
+		{
+			"&*a;",
+			"(&(*a));",
+		},
 	}
 
 	for i, tt := range tests {

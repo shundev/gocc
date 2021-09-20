@@ -25,6 +25,7 @@ const (
 	LTE        = "<="
 	GT         = ">"
 	GTE        = ">="
+	AND        = "&"
 	NUM        = "NUM"
 	IDENT      = "IDENT"
 	SEMICOLLON = ";"
@@ -170,6 +171,9 @@ func (t *Tokenizer) Tokenize() *Token {
 			t.idx += 2
 		case ';':
 			cur = newToken(SEMICOLLON, cur, 0, ";", t.idx)
+			t.idx++
+		case '&':
+			cur = newToken(AND, cur, 0, "&", t.idx)
 			t.idx++
 		case 0:
 			cur = newToken(EOF, cur, 0, "", t.idx)

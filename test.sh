@@ -16,6 +16,9 @@ assert() {
   fi
 }
 
+assert 5 "x = 5; y = &x; z = &y; return **z;"
+assert 5 "x = 5;return *&x;"
+assert 2 "bar = 2; return bar;"
 assert 1 "bar = 1; return bar;"
 assert 35 "abc123 = 5; 🍺🍣 = 10; ホゲホゲ=20; return abc123 + 🍺🍣 + ホゲホゲ;"
 assert 22 "a=b=c=d=e=f=g=h=i=j=k=2; return a+b+c+d+e+f+g+h+i+j+k;"

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"go9cc/token"
-	"os"
 	"strings"
 )
 
@@ -524,8 +523,8 @@ func (p *Parser) assign() Exp {
 		// TODO: duplicate left value check
 		if ident, ok := infix.Left.(*IdentExp); ok {
 			if _, exists := p.offsets[ident.Name]; !exists {
-				p.offsets[ident.Name] = p.offsetCnt
 				p.offsetCnt += 8
+				p.offsets[ident.Name] = p.offsetCnt
 			}
 		}
 	}
@@ -621,6 +620,10 @@ func (p *Parser) unary() Exp {
 	case token.PLUS:
 		fallthrough
 	case token.MINUS:
+		fallthrough
+	case token.ASTERISK:
+		fallthrough
+	case token.AND:
 		node := &UnaryExp{
 			Right: nil,
 			Op:    p.cur.Str,
@@ -636,7 +639,6 @@ func (p *Parser) unary() Exp {
 }
 
 func (p *Parser) primary() Exp {
-	p.expect(p.cur, token.NUM, token.IDENT, token.LPAREN)
 	switch p.cur.Kind {
 	case token.NUM:
 		return p.num()
@@ -649,9 +651,7 @@ func (p *Parser) primary() Exp {
 		p.nextTkn() // )
 		return n
 	default:
-		// expectでチェックしているのでここは通らず.
-		os.Exit(1)
-		return nil
+		return p.unary()
 	}
 }
 

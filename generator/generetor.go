@@ -46,18 +46,23 @@ func (g *Generator) Gen() {
 }
 
 // push corresponding address to the top of stack
-func (g *Generator) lvalue(node parser.Node) {
-	ident, ok := node.(*parser.IdentExp)
-	if !ok {
-		fmt.Fprintf(os.Stderr, "Lvalue must be a ident node, but got: %T, %s\n", node, node.String())
-		os.Exit(1)
+func (g *Generator) address(node parser.Node) {
+	switch node.(type) {
+	case *parser.UnaryExp:
+		unary, _ := node.(*parser.UnaryExp)
+		if unary.Op == "&" {
+			g.walk(unary.Right)
+			return
+		}
+	case *parser.IdentExp:
+		ident, _ := node.(*parser.IdentExp)
+		offset := g.getOffset(ident)
+		g.lea(RAX, RBP, -offset)
+		return
 	}
 
-	offset := g.getOffset(ident)
-
-	g.mov(RAX, RBP)
-	g.sub(RAX, fmt.Sprintf("%d", offset))
-	g.push(RAX)
+	fmt.Fprintf(os.Stderr, "address must be a ident node, but got: %T, %s\n", node, node.String())
+	os.Exit(1)
 }
 
 /*
@@ -73,12 +78,10 @@ func (g *Generator) walk(node parser.Node) {
 	case *parser.ExpStmt:
 		stmt, _ := node.(*parser.ExpStmt)
 		g.walk(stmt.Exp)
-		g.pop(RAX)
 	case *parser.ReturnStmt:
 		stmt, _ := node.(*parser.ReturnStmt)
 		g.walk(stmt.Exp)
-		g.pop(RAX)
-		g.epilog()
+		g.jmp("L.return")
 	case *parser.BlockStmt:
 		block, _ := node.(*parser.BlockStmt)
 		for _, stmt := range block.Stmts {
@@ -94,7 +97,6 @@ func (g *Generator) walk(node parser.Node) {
 		g.label(lblBegin)
 		if stmt.Cond != nil {
 			g.walk(stmt.Cond)
-			g.pop(RAX)
 			g.cmp(RAX, "0")
 			g.je(lblEnd) // RAXが0(false)ならforの外にジャンプ
 		}
@@ -110,7 +112,6 @@ func (g *Generator) walk(node parser.Node) {
 		lblEnd := g.genLbl()
 		g.label(lblBegin)
 		g.walk(stmt.Cond)
-		g.pop(RAX)
 		g.cmp(RAX, "0")
 		g.je(lblEnd) // RAXが0(false)ならwhileの外にジャンプ
 		g.walk(stmt.Body)
@@ -121,7 +122,6 @@ func (g *Generator) walk(node parser.Node) {
 		lblElse := g.genLbl()
 		lblEnd := g.genLbl()
 		g.walk(stmt.Cond)
-		g.pop(RAX)
 		g.cmp(RAX, "0")
 		g.je(lblElse) // RAXが0(false)ならelseブロックにジャンプ
 		g.walk(stmt.IfBody)
@@ -133,47 +133,44 @@ func (g *Generator) walk(node parser.Node) {
 		g.label(lblEnd)
 	case *parser.NumExp:
 		num, _ := node.(*parser.NumExp)
-		g.push(fmt.Sprintf("%d", num.Val))
+		val := fmt.Sprintf("%d", num.Val)
+		g.mov(RAX, val)
 	case *parser.IdentExp:
 		// 変数呼び出し
-		ident, _ := node.(*parser.IdentExp)
-		offset := g.getOffset(ident)
-		g.mov(RAX, RBP)
-		g.sub(RAX, fmt.Sprintf("%d", offset))
+		g.address(node)
 		g.mov(RAX, "["+RAX+"]")
-		g.push(RAX)
 	case *parser.FuncCallExp:
-		// 変数呼び出し
+		// 関数呼び出し
 		node, _ := node.(*parser.FuncCallExp)
 		g.call(node.Name)
 	case *parser.UnaryExp:
-		// Regard unary as infix for easy development(i.e. -1 -> 0 - 1)
 		unary, _ := node.(*parser.UnaryExp)
-		infix := parser.UnaryToInfix(unary)
-		g.walk(infix)
+		switch unary.Op {
+		case "&":
+			g.address(unary.Right) // RAXに目標のアドレスが載る
+		case "*":
+			g.walk(unary.Right) // これでスタックトップに目標のアドレスが載る
+			g.mov(RAX, "["+RAX+"]")
+		case "+":
+		case "-":
+			g.walk(unary.Right)
+			g.neg(RAX)
+		}
 	case *parser.InfixExp:
 		infix, _ := node.(*parser.InfixExp)
 		if infix.Op == "=" {
-			g.lvalue(infix.Left)
+			g.address(infix.Left)
+			g.push(RAX)
 			g.walk(infix.Right)
 			g.pop(RDI)
-			g.pop(RAX)
-			g.mov("["+RAX+"]", RDI) // Write RDI to memory RAX
-			g.push(RDI)             // eval a = 2 to 2
+			g.mov("["+RDI+"]", RAX)
 			return
 		}
 
-		g.walk(infix.Left)
 		g.walk(infix.Right)
-
-		// <と>は左右だけ入れ替えて同じアセンブリ命令setlを使う
-		if infix.Op == ">" || infix.Op == ">=" {
-			g.pop(RAX)
-			g.pop(RDI)
-		} else {
-			g.pop(RDI)
-			g.pop(RAX)
-		}
+		g.push(RAX)
+		g.walk(infix.Left)
+		g.pop(RDI)
 
 		switch infix.Op {
 		case "+":
@@ -184,15 +181,22 @@ func (g *Generator) walk(node parser.Node) {
 			g.mul(RAX, RDI)
 		case "/":
 			g.div(RDI)
-		case "<":
-			fallthrough
 		case ">":
+			// swap RAX and RDI
+			g.push(RAX)
+			g.mov(RAX, RDI)
+			g.pop(RDI)
+			fallthrough
+		case "<":
 			g.cmp(RAX, RDI)
 			g.setl(AL)
 			g.movzb(RAX, AL)
-		case "<=":
-			fallthrough
 		case ">=":
+			g.push(RAX)
+			g.mov(RAX, RDI)
+			g.pop(RDI)
+			fallthrough
+		case "<=":
 			g.cmp(RAX, RDI)
 			g.setle(AL)
 			g.movzb(RAX, AL)
@@ -205,7 +209,6 @@ func (g *Generator) walk(node parser.Node) {
 			g.setne(AL)
 			g.movzb(RAX, AL)
 		}
-		g.push(RAX)
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown node: %T, %s\n", node, node.String())
 		os.Exit(1)
@@ -223,6 +226,7 @@ func (g *Generator) prolog() {
 }
 
 func (g *Generator) epilog() {
+	g.label("L.return")
 	g.mov(RSP, RBP)
 	g.pop(RBP)
 	g.ret()
@@ -313,6 +317,16 @@ func (g *Generator) cmp(rad1, rad2 string) {
 
 func (g *Generator) movzb(rad1, rad2 string) {
 	s := fmt.Sprintf("  movzb %s, %s\n", rad1, rad2)
+	io.WriteString(g.out, s)
+}
+
+func (g *Generator) lea(rad1, rad2 string, offset int) {
+	s := fmt.Sprintf("  lea %s, [%s%d]\n", rad1, rad2, offset)
+	io.WriteString(g.out, s)
+}
+
+func (g *Generator) neg(rad1 string) {
+	s := fmt.Sprintf("  neg %s\n", rad1)
 	io.WriteString(g.out, s)
 }
 
