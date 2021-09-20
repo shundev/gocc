@@ -90,6 +90,10 @@ func TestParseInfix(t *testing.T) {
 			"if (1) { a; b; c; return d;}",
 			"if (1) { a; b; c; return d; }",
 		},
+		{
+			"foo    ( );",
+			"foo ();",
+		},
 	}
 
 	for i, tt := range tests {

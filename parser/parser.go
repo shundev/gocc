@@ -104,6 +104,27 @@ func (n *IdentExp) String() string {
 	return n.Name
 }
 
+/* Function */
+
+type FuncCallExp struct {
+	Name  string
+	token *token.Token
+}
+
+func (n *FuncCallExp) expNode() {}
+
+func (n *FuncCallExp) TokenLiteral() string {
+	return n.token.Str
+}
+
+func (n *FuncCallExp) String() string {
+	var out bytes.Buffer
+	out.WriteString(n.Name)
+	out.WriteString(" (")
+	out.WriteString(")")
+	return out.String()
+}
+
 /* Statement */
 
 type ExpStmt struct {
@@ -291,7 +312,8 @@ lg        = add ("<" add)?
 add       = mul ("+" mul | "-" mul)*
 mul       = unary ("*" unary | "/" unary)*
 unary     = ("+" | "-")? primary
-primary   = num | ident | "(" expr ")"
+primary   = num | funccall | ident | "(" expr ")"
+funccall  = ident "(" ")"
 */
 
 /* Parser */
@@ -619,11 +641,21 @@ func (p *Parser) num() Exp {
 
 func (p *Parser) ident() Exp {
 	p.expect(p.cur, token.IDENT)
-	node := &IdentExp{
-		Name: p.cur.Str, token: p.cur,
-	}
+	tkn := p.cur
 	p.nextTkn()
-	return node
+
+	if p.cur.Kind == token.LPAREN {
+		p.nextTkn()
+		p.expect(p.cur, token.RPAREN)
+		p.nextTkn()
+		return &FuncCallExp{
+			Name: tkn.Str, token: tkn,
+		}
+	} else {
+		return &IdentExp{
+			Name: tkn.Str, token: tkn,
+		}
+	}
 }
 
 func (p *Parser) expect(token *token.Token, kinds ...token.TokenKind) {
