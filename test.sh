@@ -4,7 +4,7 @@ assert() {
   input="$2"
 
   timeout 3 ./main "$input" 1> tmp.s 2>>./logs/build.log
-  cc -o tmp tmp.s
+  cc -o tmp tmp.s foo.o
   ./tmp
   actual="$?"
 

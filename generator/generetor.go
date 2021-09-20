@@ -137,6 +137,10 @@ func (g *Generator) walk(node parser.Node) {
 		g.sub(RAX, fmt.Sprintf("%d", offset))
 		g.mov(RAX, "["+RAX+"]")
 		g.push(RAX)
+	case *parser.FuncCallExp:
+		// 変数呼び出し
+		node, _ := node.(*parser.FuncCallExp)
+		g.call(node.Name)
 	case *parser.UnaryExp:
 		// Regard unary as infix for easy development(i.e. -1 -> 0 - 1)
 		unary, _ := node.(*parser.UnaryExp)
@@ -286,9 +290,16 @@ func (g *Generator) jne(label string) {
 	s := fmt.Sprintf("  jne .%s\n", label)
 	io.WriteString(g.out, s)
 }
+
 func (g *Generator) jmp(label string) {
 
 	s := fmt.Sprintf("  jmp .%s\n", label)
+	io.WriteString(g.out, s)
+}
+
+func (g *Generator) call(label string) {
+
+	s := fmt.Sprintf("  call %s\n", label)
 	io.WriteString(g.out, s)
 }
 
