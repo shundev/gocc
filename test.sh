@@ -16,6 +16,8 @@ assert() {
   fi
 }
 
+assert 5 "x=3; y=5; return *(&x+8);"
+assert 3 "x=3; y=5; return *(&y-8);"
 assert 5 "x = 5;return *&*&x;"
 assert 5 "x = 5; y = &x; z = &y; return **z;"
 assert 5 "x = 5;return *&x;"

@@ -179,7 +179,7 @@ func (g *Generator) walk(node parser.Node) {
 		case "*":
 			g.mul(RAX, RDI)
 		case "/":
-			g.div(RDI) // 右辺をRDIに入れているから
+			g.div(RDI)
 		case ">":
 			// swap RAX and RDI
 			g.push(RAX)
@@ -351,5 +351,5 @@ func (g *Generator) getOffset(ident *parser.IdentExp) int {
 		os.Exit(1)
 	}
 
-	return offset
+	return g.stackSize - offset + 8
 }

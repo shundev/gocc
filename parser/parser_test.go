@@ -102,6 +102,10 @@ func TestParseInfix(t *testing.T) {
 			"&*a;",
 			"(&(*a));",
 		},
+		{
+			"*(&a-1);",
+			"(*((&a) - 1));",
+		},
 	}
 
 	for i, tt := range tests {
