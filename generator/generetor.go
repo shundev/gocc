@@ -49,8 +49,9 @@ func (g *Generator) Gen() {
 func (g *Generator) address(node parser.Node) {
 	switch node.(type) {
 	case *parser.UnaryExp:
+		// Nested unary.
 		unary, _ := node.(*parser.UnaryExp)
-		if unary.Op == "&" {
+		if unary.Op == "*" {
 			g.walk(unary.Right)
 			return
 		}
@@ -65,9 +66,6 @@ func (g *Generator) address(node parser.Node) {
 	os.Exit(1)
 }
 
-/*
-nodeの評価結果をスタックトップにpushする
-*/
 func (g *Generator) walk(node parser.Node) {
 	switch node.(type) {
 	case *parser.ProgramNode:
@@ -149,9 +147,10 @@ func (g *Generator) walk(node parser.Node) {
 		case "&":
 			g.address(unary.Right) // RAXに目標のアドレスが載る
 		case "*":
-			g.walk(unary.Right) // これでスタックトップに目標のアドレスが載る
+			g.walk(unary.Right) // RAXに目標のアドレスが載る
 			g.mov(RAX, "["+RAX+"]")
 		case "+":
+			// do nothing ( +5 -> 5)
 		case "-":
 			g.walk(unary.Right)
 			g.neg(RAX)
@@ -160,14 +159,14 @@ func (g *Generator) walk(node parser.Node) {
 		infix, _ := node.(*parser.InfixExp)
 		if infix.Op == "=" {
 			g.address(infix.Left)
-			g.push(RAX)
+			g.push(RAX) // 直近2つのRAXが必要な場合は前のRAXをスタックに退避
 			g.walk(infix.Right)
 			g.pop(RDI)
 			g.mov("["+RDI+"]", RAX)
 			return
 		}
 
-		g.walk(infix.Right)
+		g.walk(infix.Right) // 先に計算した方がRDIに入るから右辺を先にしないと-の時問題
 		g.push(RAX)
 		g.walk(infix.Left)
 		g.pop(RDI)
@@ -176,11 +175,11 @@ func (g *Generator) walk(node parser.Node) {
 		case "+":
 			g.add(RAX, RDI)
 		case "-":
-			g.sub(RAX, RDI)
+			g.sub(RAX, RDI) // 右辺をRDIに入れているから
 		case "*":
 			g.mul(RAX, RDI)
 		case "/":
-			g.div(RDI)
+			g.div(RDI) // 右辺をRDIに入れているから
 		case ">":
 			// swap RAX and RDI
 			g.push(RAX)
