@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"go9cc/token"
+	"go9cc/types"
+	"os"
 	"strings"
 )
 
@@ -20,6 +22,7 @@ type Stmt interface {
 type Exp interface {
 	Node
 	expNode()
+	Type() types.Type
 }
 
 /* Num */
@@ -37,6 +40,10 @@ func (n *NumExp) TokenLiteral() string {
 
 func (n *NumExp) String() string {
 	return fmt.Sprintf("%d", n.Val)
+}
+
+func (n *NumExp) Type() types.Type {
+	return types.Int
 }
 
 /* Infix */
@@ -63,6 +70,10 @@ func (n *InfixExp) String() string {
 	return out.String()
 }
 
+func (n *InfixExp) Type() types.Type {
+	return n.Right.Type()
+}
+
 /* Unary */
 
 type UnaryExp struct {
@@ -86,6 +97,23 @@ func (n *UnaryExp) String() string {
 	return out.String()
 }
 
+func (n *UnaryExp) Type() types.Type {
+	switch n.Op {
+	case "+":
+		fallthrough
+	case "-":
+		fallthrough
+	case "*":
+		return types.Int
+	case "&":
+		return types.IntPointer
+	}
+
+	fmt.Fprintf(os.Stderr, "Invalid op: %s", n.Op)
+	os.Exit(1)
+	return types.Int
+}
+
 /* Identifier */
 
 type IdentExp struct {
@@ -103,6 +131,10 @@ func (n *IdentExp) String() string {
 	return n.Name
 }
 
+func (n *IdentExp) Type() types.Type {
+	return types.Int
+}
+
 /* Function */
 
 type FuncCallExp struct {
@@ -114,6 +146,11 @@ func (n *FuncCallExp) expNode() {}
 
 func (n *FuncCallExp) TokenLiteral() string {
 	return n.token.Str
+}
+
+func (n *FuncCallExp) Type() types.Type {
+	// FIXME
+	return types.Int
 }
 
 func (n *FuncCallExp) String() string {
@@ -681,6 +718,19 @@ func (p *Parser) ident() Exp {
 			Name: tkn.Str, token: tkn,
 		}
 	}
+}
+
+func Scale(infix *InfixExp) *InfixExp {
+	right, ok := infix.Right.(*NumExp)
+	if !ok {
+		fmt.Fprintln(os.Stderr, "Failed to scale.")
+		os.Exit(1)
+	}
+
+	num8 := &NumExp{Val: 8}
+	mul := &InfixExp{Left: right, Right: num8, Op: "*"}
+	infix.Right = mul
+	return infix
 }
 
 func (p *Parser) expect(token *token.Token, kinds ...token.TokenKind) {

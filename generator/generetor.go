@@ -3,6 +3,7 @@ package generator
 import (
 	"fmt"
 	"go9cc/parser"
+	"go9cc/types"
 	"io"
 	"os"
 )
@@ -164,6 +165,13 @@ func (g *Generator) walk(node parser.Node) {
 			g.pop(RDI)
 			g.mov("["+RDI+"]", RAX)
 			return
+		}
+
+		// ポインタ演算はタイプのサイズによってスケールする
+		if infix.Op == "+" || infix.Op == "-" {
+			if infix.Left.Type() == types.IntPointer && infix.Right.Type() == types.Int {
+				infix = parser.Scale(infix)
+			}
 		}
 
 		g.walk(infix.Right) // 先に計算した方がRDIに入るから右辺を先にしないと-の時問題
