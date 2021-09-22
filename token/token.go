@@ -28,6 +28,7 @@ const (
 	AND        = "&"
 	NUM        = "NUM"
 	IDENT      = "IDENT"
+	TYPE       = "TYPE"
 	SEMICOLLON = ";"
 	RETURN     = "RETURN"
 	IF         = "IF"
@@ -179,7 +180,10 @@ func (t *Tokenizer) Tokenize() *Token {
 			cur = newToken(EOF, cur, 0, "", t.idx)
 			return head.Next
 		default:
-			if newIdx, ok := tryKeyword(t.code, t.idx, "return"); ok {
+			if newIdx, ok := tryKeyword(t.code, t.idx, "int"); ok {
+				cur = newToken(TYPE, cur, 0, "int", t.idx)
+				t.idx = newIdx
+			} else if newIdx, ok := tryKeyword(t.code, t.idx, "return"); ok {
 				cur = newToken(RETURN, cur, 0, "return", t.idx)
 				t.idx = newIdx
 			} else if newIdx, ok := tryKeyword(t.code, t.idx, "if"); ok {
