@@ -1,27 +1,37 @@
 package types
 
 const (
-	INT         = "INT"
+	INT         = "int"
 	INT_POINTER = "INT_POINTER"
 )
 
 var (
-	Int        = &int_{}
-	IntPointer = &intPointer{}
+	int_ = &Int{}
 )
 
 type Type interface {
 	String() string
 }
 
-type int_ struct{}
+type Int struct {
+}
 
-func (t *int_) String() string {
+func (t *Int) String() string {
 	return INT
 }
 
-type intPointer struct{}
+type IntPointer struct {
+	Base Type
+}
 
-func (t *intPointer) String() string {
+func (t *IntPointer) String() string {
 	return INT_POINTER
+}
+
+func GetInt() Type {
+	return int_
+}
+
+func PointerTo(base Type) Type {
+	return &IntPointer{Base: base}
 }

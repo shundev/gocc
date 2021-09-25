@@ -39,16 +39,12 @@ func TestParseInfix(t *testing.T) {
 			"((10 <= 5) == (1 >= 3));",
 		},
 		{
-			"ab1000 = 999;",
-			"(ab1000 = 999);",
+			"int ab1000 = 999;",
+			"int ab1000 = 999;",
 		},
 		{
-			"a = b = c = 1;",
-			"(a = (b = (c = 1)));",
-		},
-		{
-			"a = b = 1; a + b;",
-			"(a = (b = 1)); (a + b);",
+			"int a = 1; int b = 1; int c = 1; a = b = c = 1;",
+			"int a = 1; int b = 1; int c = 1; (a = (b = (c = 1)));",
 		},
 		{
 			"",
@@ -59,32 +55,32 @@ func TestParseInfix(t *testing.T) {
 			"((1 + 2) == (5 - 2));",
 		},
 		{
-			"a = 10;b = c = 20;return a + b + c;",
-			"(a = 10); (b = (c = 20)); return ((a + b) + c);",
+			"int a = 10;int b = 10; int c = 20;return a + b + c;",
+			"int a = 10; int b = 10; int c = 20; return ((a + b) + c);",
 		},
 		{
-			"a = 10;return a; return 20;",
-			"(a = 10); return a; return 20;",
+			"int a = 10;return a; return 20;",
+			"int a = 10; return a; return 20;",
 		},
 		{
 			"if (a == 10) return b;",
 			"if ((a == 10)) return b;",
 		},
 		{
-			"if (a = 1 == 10) return b; else return a + 10;",
-			"if ((a = (1 == 10))) return b; else return (a + 10);",
+			"int a = 0; if (a = 1 == 10) return b; else return a + 10;",
+			"int a = 0; if ((a = (1 == 10))) return b; else return (a + 10);",
 		},
 		{
 			"while (a == 10) return a;",
 			"while ((a == 10)) return a;",
 		},
 		{
-			"a = 10; for (i=0; i<10;i = i + 1) a = a + 3;",
-			"(a = 10); for ((i = 0);(i < 10);(i = (i + 1))) (a = (a + 3));",
+			"int a = 10; for (int i=0; i<10;i = i + 1) a = a + 3;",
+			"int a = 10; for (int i = 0;(i < 10);(i = (i + 1))) (a = (a + 3));",
 		},
 		{
-			"i = 0; for (; i<10;) i = i + 1;",
-			"(i = 0); for (;(i < 10);) (i = (i + 1));",
+			"int i = 0; for (; i<10;) i = i + 1;",
+			"int i = 0; for (;(i < 10);) (i = (i + 1));",
 		},
 		{
 			"if (1) { a; b; c; return d;}",
@@ -105,6 +101,10 @@ func TestParseInfix(t *testing.T) {
 		{
 			"*(&a-1);",
 			"(*((&a) - 1));",
+		},
+		{
+			"int a = 0;",
+			"int a = 0;",
 		},
 	}
 

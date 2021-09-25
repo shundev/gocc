@@ -47,28 +47,30 @@ func (g *Generator) Gen() {
 }
 
 // push corresponding address to the top of stack
-func (g *Generator) address(node parser.Node) {
-	switch node.(type) {
+func (g *Generator) address(node interface{}) {
+	switch ty := node.(type) {
 	case *parser.UnaryExp:
 		// Nested unary.
-		unary, _ := node.(*parser.UnaryExp)
-		if unary.Op == "*" {
-			g.walk(unary.Right)
+		if ty.Op == "*" {
+			g.walk(ty.Right)
 			return
 		}
+	case *parser.LocalVariable:
+		offset := g.getOffset(ty.Name)
+		g.lea(RAX, RBP, -offset)
+		return
 	case *parser.IdentExp:
-		ident, _ := node.(*parser.IdentExp)
-		offset := g.getOffset(ident)
+		offset := g.getOffset(ty.Name)
 		g.lea(RAX, RBP, -offset)
 		return
 	}
 
-	fmt.Fprintf(os.Stderr, "address must be a ident node, but got: %T, %s\n", node, node.String())
+	fmt.Fprintf(os.Stderr, "address must be a ident node, but got: %T\n", node)
 	os.Exit(1)
 }
 
 func (g *Generator) walk(node parser.Node) {
-	switch node.(type) {
+	switch ty := node.(type) {
 	case *parser.ProgramNode:
 		program, _ := node.(*parser.ProgramNode)
 		for _, stmt := range program.Stmts {
@@ -156,6 +158,14 @@ func (g *Generator) walk(node parser.Node) {
 			g.walk(unary.Right)
 			g.neg(RAX)
 		}
+	case *parser.DeclarationExp:
+		for _, local := range ty.LV.Locals {
+			g.address(local)
+			g.push(RAX) // 直近2つのRAXが必要な場合は前のRAXをスタックに退避
+			g.walk(ty.Exp)
+			g.pop(RDI)
+			g.mov("["+RDI+"]", RAX)
+		}
 	case *parser.InfixExp:
 		infix, _ := node.(*parser.InfixExp)
 		if infix.Op == "=" {
@@ -169,7 +179,8 @@ func (g *Generator) walk(node parser.Node) {
 
 		// ポインタ演算はタイプのサイズによってスケールする
 		if infix.Op == "+" || infix.Op == "-" {
-			if infix.Left.Type() == types.IntPointer && infix.Right.Type() == types.Int {
+			switch infix.Left.Type().(type) {
+			case *types.IntPointer:
 				infix = parser.Scale(infix)
 			}
 		}
@@ -352,10 +363,10 @@ func (g *Generator) genLbl() string {
 	return s
 }
 
-func (g *Generator) getOffset(ident *parser.IdentExp) int {
-	offset, ok := g.offsets[ident.Name]
+func (g *Generator) getOffset(name string) int {
+	offset, ok := g.offsets[name]
 	if !ok {
-		fmt.Fprintf(os.Stderr, "Invalid ident.Name: %s\n", ident.Name)
+		fmt.Fprintf(os.Stderr, "Invalid ident name: %s\n", name)
 		os.Exit(1)
 	}
 

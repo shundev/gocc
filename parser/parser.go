@@ -9,6 +9,16 @@ import (
 	"strings"
 )
 
+type LocalVariable struct {
+	Name   string
+	Type   types.Type
+	offset int
+}
+
+func (n *LocalVariable) String() string {
+	return n.Name
+}
+
 type Node interface {
 	String() string
 	TokenLiteral() string
@@ -23,6 +33,31 @@ type Exp interface {
 	Node
 	expNode()
 	Type() types.Type
+}
+
+/* Local Variable */
+
+type LocalVariableNode struct {
+	Locals []*LocalVariable
+	Type   types.Type
+	token  *token.Token
+}
+
+func (n *LocalVariableNode) TokenLiteral() string {
+	return n.token.Str
+}
+
+func (n *LocalVariableNode) String() string {
+	var out bytes.Buffer
+	out.WriteString(n.Type.String())
+	out.WriteString(" ")
+
+	ss := []string{}
+	for _, local := range n.Locals {
+		ss = append(ss, local.String())
+	}
+	out.WriteString(strings.Join(ss, ", "))
+	return out.String()
 }
 
 /* Num */
@@ -43,7 +78,7 @@ func (n *NumExp) String() string {
 }
 
 func (n *NumExp) Type() types.Type {
-	return types.Int
+	return types.GetInt()
 }
 
 /* Infix */
@@ -72,6 +107,35 @@ func (n *InfixExp) String() string {
 
 func (n *InfixExp) Type() types.Type {
 	return n.Right.Type()
+}
+
+/* Declaration */
+
+type DeclarationExp struct {
+	LV    *LocalVariableNode
+	Exp   Exp
+	Op    string
+	token *token.Token
+}
+
+func (n *DeclarationExp) expNode() {}
+
+func (n *DeclarationExp) TokenLiteral() string {
+	return n.token.Str
+}
+
+func (n *DeclarationExp) String() string {
+	var out bytes.Buffer
+	out.WriteString(n.LV.String())
+	if n.Exp != nil {
+		out.WriteString(" " + n.Op + " ")
+		out.WriteString(n.Exp.String())
+	}
+	return out.String()
+}
+
+func (n *DeclarationExp) Type() types.Type {
+	return n.LV.Type
 }
 
 /* Unary */
@@ -104,14 +168,14 @@ func (n *UnaryExp) Type() types.Type {
 	case "-":
 		fallthrough
 	case "*":
-		return types.Int
+		return types.GetInt()
 	case "&":
-		return types.IntPointer
+		return types.PointerTo(types.GetInt())
 	}
 
 	fmt.Fprintf(os.Stderr, "Invalid op: %s", n.Op)
 	os.Exit(1)
-	return types.Int
+	return types.GetInt()
 }
 
 /* Identifier */
@@ -132,7 +196,7 @@ func (n *IdentExp) String() string {
 }
 
 func (n *IdentExp) Type() types.Type {
-	return types.Int
+	return types.GetInt()
 }
 
 /* Function */
@@ -150,7 +214,7 @@ func (n *FuncCallExp) TokenLiteral() string {
 
 func (n *FuncCallExp) Type() types.Type {
 	// FIXME
-	return types.Int
+	return types.GetInt()
 }
 
 func (n *FuncCallExp) String() string {
@@ -348,9 +412,9 @@ func (n *ProgramNode) String() string {
 
 /*
 program   = stmt*
-stmt      = (return expr ";") | (expr ";") | ifstmt | whilestmt | blockstmt
+stmt      = (declaration ";") | (return expr ";") | (expr ";") | ifstmt | whilestmt | blockstmt
 blockstmt = "{" stmt* "}"
-forstmt   = "for" "(" expr? ";" expr? ";" expr? ")" stmt
+forstmt   = "for" "(" (expr|declaration)? ";" expr? ";" expr? ")" stmt
 ifstmt    = "if" "(" expr ")" stmt ("else" stmt)?
 whilestmt = "while" "(" expr ")" stmt
 expr      = assign
@@ -362,6 +426,16 @@ mul       = unary ("*" unary | "/" unary)*
 unary     = ("+" | "-")? primary
 primary   = num | funccall | ident | "(" expr ")"
 funccall  = ident "(" ")"
+
+declaration =
+  declspec
+    (declarator
+      ("=" expr)?
+      ("," declarator ("=" expr)?)
+    *)?
+  ";"
+declarator = "*"* ident
+declspec = "int"
 */
 
 /* Parser */
@@ -418,6 +492,10 @@ func (p *Parser) program() *ProgramNode {
 }
 
 func (p *Parser) stmt() Stmt {
+	if p.cur.Kind == token.TYPE {
+		return p.declarationStmt()
+	}
+
 	if p.cur.Kind == token.LBRACE {
 		return p.blockStmt()
 	}
@@ -445,6 +523,64 @@ func (p *Parser) stmt() Stmt {
 	return node
 }
 
+func (p *Parser) declspec() types.Type {
+	p.expect(p.cur, token.TYPE)
+	p.nextTkn()
+	return types.GetInt()
+}
+
+// declarator = "*"* ident
+func (p *Parser) declarator(ty types.Type) (types.Type, *token.Token) {
+	for p.cur.Kind == token.ASTERISK {
+		ty = types.PointerTo(ty)
+		p.nextTkn()
+	}
+
+	p.expect(p.cur, token.IDENT)
+	switch ty := ty.(type) {
+	case *types.Int:
+		return ty, p.cur
+	case *types.IntPointer:
+		return ty, p.cur
+	default:
+		fmt.Fprintf(os.Stderr, "Invalid type.")
+		os.Exit(1)
+	}
+
+	return ty, nil
+}
+
+func (p *Parser) declaration() *DeclarationExp {
+	initTok := p.cur
+	baseTy := p.declspec()               // "int"
+	ty, identTok := p.declarator(baseTy) // "**a"
+	p.nextTkn()
+	p.expect(p.cur, token.ASSIGN)
+	local := &LocalVariable{Name: identTok.Str, Type: ty}
+	left := &LocalVariableNode{Locals: []*LocalVariable{local}, Type: ty, token: initTok}
+	p.nextTkn() // "="
+	right := p.expr()
+	dec := &DeclarationExp{LV: left, Exp: right, Op: "=", token: initTok}
+	for _, local := range dec.LV.Locals {
+		if _, exists := p.offsets[local.Name]; exists {
+			p.tzer.Error(p.cur.Col, "Redefinition found: %s", p.cur.Str)
+		}
+
+		p.offsetCnt += 8
+		p.offsets[local.Name] = p.offsetCnt
+	}
+	return dec
+}
+
+func (p *Parser) declarationStmt() *ExpStmt {
+	dec := p.declaration()
+	node := &ExpStmt{Exp: dec, token: dec.token}
+	p.expect(p.cur, token.SEMICOLLON)
+	p.nextTkn()
+
+	return node
+}
+
 func (p *Parser) blockStmt() *BlockStmt {
 	p.expect(p.cur, token.LBRACE)
 	tkn := p.cur
@@ -467,7 +603,11 @@ func (p *Parser) forStmt() *ForStmt {
 	p.nextTkn()
 
 	if p.cur.Kind != token.SEMICOLLON {
-		node.Init = p.expr()
+		if p.cur.Kind == token.TYPE {
+			node.Init = p.declaration()
+		} else {
+			node.Init = p.expr()
+		}
 	}
 	p.expect(p.cur, token.SEMICOLLON)
 	p.nextTkn()
@@ -560,8 +700,7 @@ func (p *Parser) assign() Exp {
 		// TODO: duplicate left value check
 		if ident, ok := infix.Left.(*IdentExp); ok {
 			if _, exists := p.offsets[ident.Name]; !exists {
-				p.offsetCnt += 8
-				p.offsets[ident.Name] = p.offsetCnt
+				p.tzer.Error(ident.token.Col, "Variable not found.")
 			}
 		}
 	}
@@ -687,8 +826,17 @@ func (p *Parser) primary() Exp {
 		p.expect(p.cur, token.RPAREN)
 		p.nextTkn() // )
 		return n
-	default:
+	case token.AND:
+		fallthrough
+	case token.ASTERISK:
+		fallthrough
+	case token.PLUS:
+		fallthrough
+	case token.MINUS:
 		return p.unary()
+	default:
+		p.tzer.Error(p.cur.Col, "Invalid token as primary: %s", p.cur.Str)
+		return nil
 	}
 }
 

@@ -30,6 +30,7 @@ const (
 	IDENT      = "IDENT"
 	TYPE       = "TYPE"
 	SEMICOLLON = ";"
+	COMMA      = ","
 	RETURN     = "RETURN"
 	IF         = "IF"
 	ELSE       = "ELSE"
@@ -128,6 +129,9 @@ func (t *Tokenizer) Tokenize() *Token {
 			t.idx++
 		case '}':
 			cur = newToken(RBRACE, cur, 0, string(t.curCh()), t.idx)
+			t.idx++
+		case ',':
+			cur = newToken(COMMA, cur, 0, string(t.curCh()), t.idx)
 			t.idx++
 		case '<':
 			t.idx++
