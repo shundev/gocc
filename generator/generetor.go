@@ -10,7 +10,6 @@ import (
 
 const HEADER = `.intel_syntax noprefix
 .globl main
-main:
 `
 
 const (
@@ -27,6 +26,7 @@ type Generator struct {
 	lblCnt    int
 	offsets   map[string]int
 	stackSize int
+	currentFn *parser.FuncDefNode
 }
 
 func New(p *parser.Parser, out io.Writer) *Generator {
@@ -41,9 +41,7 @@ func (g *Generator) Gen() {
 	g.offsets = node.Offsets
 	g.stackSize = node.StackSize()
 
-	g.prolog()
 	g.walk(node)
-	g.epilog()
 }
 
 // push corresponding address to the top of stack
@@ -72,22 +70,21 @@ func (g *Generator) address(node interface{}) {
 func (g *Generator) walk(node parser.Node) {
 	switch ty := node.(type) {
 	case *parser.ProgramNode:
-		program, _ := node.(*parser.ProgramNode)
-		for _, stmt := range program.Stmts {
+		for _, stmt := range ty.FuncDefs {
 			g.walk(stmt)
 		}
 	case *parser.ExpStmt:
-		stmt, _ := node.(*parser.ExpStmt)
-		g.walk(stmt.Exp)
+		g.walk(ty.Exp)
 	case *parser.ReturnStmt:
-		stmt, _ := node.(*parser.ReturnStmt)
-		g.walk(stmt.Exp)
-		g.jmp("L.return")
-	case *parser.BlockStmt:
-		block, _ := node.(*parser.BlockStmt)
-		for _, stmt := range block.Stmts {
+		g.walk(ty.Exp)
+		s := fmt.Sprintf(".L.return.%s", g.currentFn.Name)
+		g.jmp(s)
+	case *parser.StmtListNode:
+		for _, stmt := range ty.Stmts {
 			g.walk(stmt)
 		}
+	case *parser.BlockStmt:
+		g.walk(ty.Stmts)
 	case *parser.ForStmt:
 		stmt, _ := node.(*parser.ForStmt)
 		lblBegin := g.genLbl()
@@ -133,19 +130,24 @@ func (g *Generator) walk(node parser.Node) {
 		}
 		g.label(lblEnd)
 	case *parser.NumExp:
-		num, _ := node.(*parser.NumExp)
-		val := fmt.Sprintf("%d", num.Val)
+		val := fmt.Sprintf("%d", ty.Val)
 		g.mov(RAX, val)
 	case *parser.IdentExp:
 		// 変数呼び出し
-		g.address(node)
+		g.address(ty)
 		g.mov(RAX, "["+RAX+"]")
 	case *parser.FuncCallExp:
 		// 関数呼び出し
-		node, _ := node.(*parser.FuncCallExp)
-		g.call(node.Name)
+		g.call(ty.Name)
+	case *parser.FuncDefNode:
+		g.currentFn = ty
+		g.label(ty.Name)
+		g.prolog(g.stackSize)
+		g.walk(ty.Body)
+		g.label(fmt.Sprintf(".L.return.%s", ty.Name))
+		g.epilog()
 	case *parser.UnaryExp:
-		unary, _ := node.(*parser.UnaryExp)
+		unary := ty
 		switch unary.Op {
 		case "&":
 			g.address(unary.Right) // RAXに目標のアドレスが載る
@@ -169,7 +171,7 @@ func (g *Generator) walk(node parser.Node) {
 			}
 		}
 	case *parser.InfixExp:
-		infix, _ := node.(*parser.InfixExp)
+		infix := ty
 		if infix.Op == "=" {
 			g.address(infix.Left)
 			g.push(RAX) // 直近2つのRAXが必要な場合は前のRAXをスタックに退避
@@ -239,14 +241,13 @@ func (g *Generator) header() {
 	io.WriteString(g.out, HEADER)
 }
 
-func (g *Generator) prolog() {
+func (g *Generator) prolog(stackSize int) {
 	g.push(RBP)
 	g.mov(RBP, RSP)
-	g.sub(RSP, fmt.Sprintf("%d", g.stackSize))
+	g.sub(RSP, fmt.Sprintf("%d", stackSize))
 }
 
 func (g *Generator) epilog() {
-	g.label("L.return")
 	g.mov(RSP, RBP)
 	g.pop(RBP)
 	g.ret()
@@ -309,23 +310,21 @@ func (g *Generator) setle(rad1 string) {
 }
 
 func (g *Generator) je(label string) {
-	s := fmt.Sprintf("  je .%s\n", label)
+	s := fmt.Sprintf("  je %s\n", label)
 	io.WriteString(g.out, s)
 }
 
 func (g *Generator) jne(label string) {
-	s := fmt.Sprintf("  jne .%s\n", label)
+	s := fmt.Sprintf("  jne %s\n", label)
 	io.WriteString(g.out, s)
 }
 
 func (g *Generator) jmp(label string) {
-
-	s := fmt.Sprintf("  jmp .%s\n", label)
+	s := fmt.Sprintf("  jmp %s\n", label)
 	io.WriteString(g.out, s)
 }
 
 func (g *Generator) call(label string) {
-
 	s := fmt.Sprintf("  call %s\n", label)
 	io.WriteString(g.out, s)
 }
@@ -355,12 +354,12 @@ func (g *Generator) ret() {
 }
 
 func (g *Generator) label(name string) {
-	s := fmt.Sprintf(".%s:\n", name)
+	s := fmt.Sprintf("%s:\n", name)
 	io.WriteString(g.out, s)
 }
 
 func (g *Generator) genLbl() string {
-	s := fmt.Sprintf("L%d", g.lblCnt)
+	s := fmt.Sprintf(".L%d", g.lblCnt)
 	g.lblCnt++
 	return s
 }

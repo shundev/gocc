@@ -14,7 +14,7 @@ main:
   push rbp
   mov rbp, rsp
   sub rsp, 0
-.L.return:
+.L.return.main:
   mov rsp, rbp
   pop rbp
   ret
@@ -23,7 +23,7 @@ main:
 		input string
 		want  string
 	}{
-		{"", want},
+		{"int main() { }", want},
 	}
 
 	for i, tt := range tests {

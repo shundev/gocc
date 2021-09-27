@@ -37,6 +37,37 @@ type Exp interface {
 	Type() types.Type
 }
 
+/* Stmt List Stmt */
+
+type StmtListNode struct {
+	Stmts []Stmt
+}
+
+func (n *StmtListNode) stmtNode() {}
+
+func (n *StmtListNode) TokenLiteral() string {
+	if len(n.Stmts) == 0 {
+		return ""
+	}
+
+	return n.Stmts[0].TokenLiteral()
+}
+
+func (n *StmtListNode) String() string {
+	if len(n.Stmts) == 0 {
+		return ""
+	}
+
+	var out bytes.Buffer
+	ss := []string{}
+	for _, stmt := range n.Stmts {
+		ss = append(ss, stmt.String())
+	}
+
+	out.WriteString(strings.Join(ss, " "))
+	return out.String()
+}
+
 /* Local Variable */
 
 type LocalVariableNode struct {
@@ -366,7 +397,7 @@ func (n *ForStmt) String() string {
 /* Block Statement */
 
 type BlockStmt struct {
-	Stmts []Stmt
+	Stmts *StmtListNode
 	token *token.Token
 }
 
@@ -377,18 +408,9 @@ func (n *BlockStmt) TokenLiteral() string {
 }
 
 func (n *BlockStmt) String() string {
-	if len(n.Stmts) == 0 {
-		return "{}"
-	}
-
 	var out bytes.Buffer
-	ss := []string{}
-	for _, stmt := range n.Stmts {
-		ss = append(ss, stmt.String())
-	}
-
 	out.WriteString("{ ")
-	out.WriteString(strings.Join(ss, " "))
+	out.WriteString(n.Stmts.String())
 	out.WriteString(" }")
 	return out.String()
 }
@@ -396,8 +418,8 @@ func (n *BlockStmt) String() string {
 /* Program */
 
 type ProgramNode struct {
-	Stmts   []Stmt
-	Offsets map[string]int
+	FuncDefs []*FuncDefNode
+	Offsets  map[string]int
 }
 
 func (n *ProgramNode) StackSize() int {
@@ -412,8 +434,8 @@ func (n *ProgramNode) StackSize() int {
 }
 
 func (n *ProgramNode) TokenLiteral() string {
-	if len(n.Stmts) > 0 {
-		return n.Stmts[0].TokenLiteral()
+	if len(n.FuncDefs) > 0 {
+		return n.FuncDefs[0].TokenLiteral()
 	}
 
 	return ""
@@ -421,16 +443,40 @@ func (n *ProgramNode) TokenLiteral() string {
 
 func (n *ProgramNode) String() string {
 	ss := []string{}
-	for _, stmt := range n.Stmts {
+	for _, stmt := range n.FuncDefs {
 		ss = append(ss, stmt.String())
 	}
 	return strings.Join(ss, " ")
 }
 
+/* Func Def */
+
+type FuncDefNode struct {
+	Body  *BlockStmt
+	Name  string
+	Type  types.Type
+	token *token.Token
+}
+
+func (n *FuncDefNode) TokenLiteral() string {
+	return n.token.Str
+}
+
+func (n *FuncDefNode) String() string {
+	var out bytes.Buffer
+	out.WriteString(n.Type.String())
+	out.WriteString(" ")
+	out.WriteString(n.Name)
+	out.WriteString(" () ")
+	out.WriteString(n.Body.String())
+	return out.String()
+}
+
 /*
-program   = stmt*
-stmt      = (declaration ";") | (return expr ";") | (expr ";") | ifstmt | whilestmt | blockstmt
+program   = funcdef funcdef*
+funcdef   = declspec declarator '(" ")" blockStmt
 blockstmt = "{" stmt* "}"
+stmt      = (declaration ";") | (return expr ";") | (expr ";") | ifstmt | whilestmt | blockstmt
 forstmt   = "for" "(" (expr|declaration)? ";" expr? ";" expr? ")" stmt
 ifstmt    = "if" "(" expr ")" stmt ("else" stmt)?
 whilestmt = "while" "(" expr ")" stmt
@@ -501,11 +547,29 @@ func (p *Parser) nextTkn() {
 
 func (p *Parser) program() *ProgramNode {
 	node := &ProgramNode{}
-	node.Stmts = []Stmt{}
+	node.FuncDefs = []*FuncDefNode{}
 	for p.cur.Kind != token.EOF {
-		node.Stmts = append(node.Stmts, p.stmt())
+		node.FuncDefs = append(node.FuncDefs, p.funcdef())
 	}
 	return node
+}
+
+func (p *Parser) funcdef() *FuncDefNode {
+	tok := p.cur
+	baseTy := p.declspec()
+	ty, identTkn := p.declarator(baseTy)
+	p.nextTkn()
+	p.expect(p.cur, token.LPAREN)
+	p.nextTkn()
+	p.expect(p.cur, token.RPAREN)
+	p.nextTkn()
+	block := p.blockStmt()
+	return &FuncDefNode{
+		Body:  block,
+		Type:  ty,
+		Name:  identTkn.Str,
+		token: tok,
+	}
 }
 
 func (p *Parser) stmt() Stmt {
@@ -568,7 +632,7 @@ func (p *Parser) declarator(ty types.Type) (types.Type, *token.Token) {
 	return ty, nil
 }
 
-func (p *Parser) declarationStmt() *BlockStmt {
+func (p *Parser) declarationStmt() *StmtListNode {
 	p.debug("declarationStmt")
 	initTok := p.cur
 	baseTy := p.declspec() // "int"
@@ -627,14 +691,14 @@ func (p *Parser) declarationStmt() *BlockStmt {
 		exps = append(exps, expStmt)
 	}
 
-	blockStmt := &BlockStmt{token: initTok}
-	blockStmt.Stmts = []Stmt{}
+	stmtList := &StmtListNode{}
+	stmtList.Stmts = []Stmt{}
 	for _, expStmt := range exps {
-		blockStmt.Stmts = append(blockStmt.Stmts, expStmt)
+		stmtList.Stmts = append(stmtList.Stmts, expStmt)
 	}
 	p.expect(p.cur, token.SEMICOLLON)
 	p.nextTkn()
-	return blockStmt
+	return stmtList
 }
 
 func (p *Parser) blockStmt() *BlockStmt {
@@ -642,10 +706,11 @@ func (p *Parser) blockStmt() *BlockStmt {
 	tkn := p.cur
 	p.nextTkn() // {
 	node := &BlockStmt{token: tkn}
-	node.Stmts = []Stmt{}
+	stmtList := &StmtListNode{Stmts: []Stmt{}}
 	for p.cur.Kind != token.RBRACE {
-		node.Stmts = append(node.Stmts, p.stmt())
+		stmtList.Stmts = append(stmtList.Stmts, p.stmt())
 	}
+	node.Stmts = stmtList
 	p.nextTkn() // }
 	return node
 }
