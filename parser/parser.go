@@ -9,6 +9,8 @@ import (
 	"strings"
 )
 
+const DEBUG = false
+
 type LocalVariable struct {
 	Name   string
 	Type   types.Type
@@ -16,7 +18,7 @@ type LocalVariable struct {
 }
 
 func (n *LocalVariable) String() string {
-	return n.Name
+	return n.Type.String() + " " + n.Name
 }
 
 type Node interface {
@@ -39,7 +41,6 @@ type Exp interface {
 
 type LocalVariableNode struct {
 	Locals []*LocalVariable
-	Type   types.Type
 	token  *token.Token
 }
 
@@ -49,15 +50,26 @@ func (n *LocalVariableNode) TokenLiteral() string {
 
 func (n *LocalVariableNode) String() string {
 	var out bytes.Buffer
-	out.WriteString(n.Type.String())
-	out.WriteString(" ")
 
 	ss := []string{}
-	for _, local := range n.Locals {
-		ss = append(ss, local.String())
+	for i, local := range n.Locals {
+		s := local.String()
+		if i > 0 {
+			s = strings.TrimPrefix(s, "int")
+		}
+		ss = append(ss, s)
 	}
 	out.WriteString(strings.Join(ss, ", "))
 	return out.String()
+}
+
+func (n *LocalVariableNode) Type() types.Type {
+	// TODO: 意味をなさない
+	if len(n.Locals) == 0 {
+		return nil
+	}
+
+	return n.Locals[0].Type
 }
 
 /* Num */
@@ -135,7 +147,7 @@ func (n *DeclarationExp) String() string {
 }
 
 func (n *DeclarationExp) Type() types.Type {
-	return n.LV.Type
+	return n.LV.Type()
 }
 
 /* Unary */
@@ -320,9 +332,10 @@ func (n *WhileStmt) String() string {
 /* For Statement */
 
 type ForStmt struct {
-	Init, Cond, AfterEach Exp
-	Body                  Stmt
-	token                 *token.Token
+	Init            Node
+	Cond, AfterEach Exp
+	Body            Stmt
+	token           *token.Token
 }
 
 func (n *ForStmt) stmtNode() {}
@@ -364,6 +377,10 @@ func (n *BlockStmt) TokenLiteral() string {
 }
 
 func (n *BlockStmt) String() string {
+	if len(n.Stmts) == 0 {
+		return "{}"
+	}
+
 	var out bytes.Buffer
 	ss := []string{}
 	for _, stmt := range n.Stmts {
@@ -524,6 +541,7 @@ func (p *Parser) stmt() Stmt {
 }
 
 func (p *Parser) declspec() types.Type {
+	p.debug("declspec")
 	p.expect(p.cur, token.TYPE)
 	p.nextTkn()
 	return types.GetInt()
@@ -531,12 +549,12 @@ func (p *Parser) declspec() types.Type {
 
 // declarator = "*"* ident
 func (p *Parser) declarator(ty types.Type) (types.Type, *token.Token) {
+	p.debug("declarator")
 	for p.cur.Kind == token.ASTERISK {
 		ty = types.PointerTo(ty)
 		p.nextTkn()
 	}
 
-	p.expect(p.cur, token.IDENT)
 	switch ty := ty.(type) {
 	case *types.Int:
 		return ty, p.cur
@@ -550,35 +568,73 @@ func (p *Parser) declarator(ty types.Type) (types.Type, *token.Token) {
 	return ty, nil
 }
 
-func (p *Parser) declaration() *DeclarationExp {
+func (p *Parser) declarationStmt() *BlockStmt {
+	p.debug("declarationStmt")
 	initTok := p.cur
-	baseTy := p.declspec()               // "int"
-	ty, identTok := p.declarator(baseTy) // "**a"
-	p.nextTkn()
-	p.expect(p.cur, token.ASSIGN)
-	local := &LocalVariable{Name: identTok.Str, Type: ty}
-	left := &LocalVariableNode{Locals: []*LocalVariable{local}, Type: ty, token: initTok}
-	p.nextTkn() // "="
-	right := p.expr()
-	dec := &DeclarationExp{LV: left, Exp: right, Op: "=", token: initTok}
-	for _, local := range dec.LV.Locals {
-		if _, exists := p.offsets[local.Name]; exists {
-			p.tzer.Error(p.cur.Col, "Redefinition found: %s", p.cur.Str)
+	baseTy := p.declspec() // "int"
+
+	locals := []*LocalVariable{}
+	exps := []*ExpStmt{}
+
+	// int a,b,c = 0, d = 3;
+	for p.cur.Kind != token.SEMICOLLON {
+		if p.cur.Kind == token.COMMA {
+			p.nextTkn()
 		}
 
-		p.offsetCnt += 8
-		p.offsets[local.Name] = p.offsetCnt
-	}
-	return dec
-}
+		ty, identTok := p.declarator(baseTy) // "**a"
+		p.nextTkn()                          // ident
 
-func (p *Parser) declarationStmt() *ExpStmt {
-	dec := p.declaration()
-	node := &ExpStmt{Exp: dec, token: dec.token}
+		local := &LocalVariable{Name: identTok.Str, Type: ty}
+		locals = append(locals, local)
+
+		if p.cur.Kind != token.ASSIGN {
+			continue
+		}
+
+		p.nextTkn() // "="
+
+		for _, local := range locals {
+			if _, exists := p.offsets[local.Name]; exists {
+				p.tzer.Error(p.cur.Col, "Declared already: %s", p.cur.Str)
+			}
+
+			p.offsetCnt += 8
+			p.offsets[local.Name] = p.offsetCnt
+		}
+
+		left := &LocalVariableNode{Locals: locals, token: initTok}
+		right := p.expr()
+		declExp := &DeclarationExp{LV: left, Exp: right, Op: "=", token: initTok}
+		expStmt := &ExpStmt{Exp: declExp, token: initTok}
+		exps = append(exps, expStmt)
+		locals = []*LocalVariable{}
+	}
+
+	if len(locals) > 0 {
+		for _, local := range locals {
+			if _, exists := p.offsets[local.Name]; exists {
+				p.tzer.Error(p.cur.Col, "Declared already: %s", p.cur.Str)
+			}
+
+			p.offsetCnt += 8
+			p.offsets[local.Name] = p.offsetCnt
+		}
+
+		left := &LocalVariableNode{Locals: locals, token: initTok}
+		declExp := &DeclarationExp{LV: left, Exp: nil, Op: "=", token: initTok}
+		expStmt := &ExpStmt{Exp: declExp, token: initTok}
+		exps = append(exps, expStmt)
+	}
+
+	blockStmt := &BlockStmt{token: initTok}
+	blockStmt.Stmts = []Stmt{}
+	for _, expStmt := range exps {
+		blockStmt.Stmts = append(blockStmt.Stmts, expStmt)
+	}
 	p.expect(p.cur, token.SEMICOLLON)
 	p.nextTkn()
-
-	return node
+	return blockStmt
 }
 
 func (p *Parser) blockStmt() *BlockStmt {
@@ -604,13 +660,16 @@ func (p *Parser) forStmt() *ForStmt {
 
 	if p.cur.Kind != token.SEMICOLLON {
 		if p.cur.Kind == token.TYPE {
-			node.Init = p.declaration()
+			node.Init = p.declarationStmt()
 		} else {
 			node.Init = p.expr()
+			p.expect(p.cur, token.SEMICOLLON)
+			p.nextTkn()
 		}
+	} else {
+		p.expect(p.cur, token.SEMICOLLON)
+		p.nextTkn()
 	}
-	p.expect(p.cur, token.SEMICOLLON)
-	p.nextTkn()
 
 	if p.cur.Kind != token.SEMICOLLON {
 		node.Cond = p.expr()
@@ -683,10 +742,12 @@ func (p *Parser) returnStmt() *ReturnStmt {
 }
 
 func (p *Parser) expr() Exp {
+	p.debug("expr")
 	return p.assign()
 }
 
 func (p *Parser) assign() Exp {
+	p.debug("assign")
 	node := p.eq()
 
 	if p.cur.Kind == token.ASSIGN {
@@ -709,6 +770,7 @@ func (p *Parser) assign() Exp {
 }
 
 func (p *Parser) eq() Exp {
+	p.debug("eq")
 	node := p.lg()
 
 	if p.cur.Kind == token.EQ || p.cur.Kind == token.NEQ {
@@ -724,6 +786,7 @@ func (p *Parser) eq() Exp {
 }
 
 func (p *Parser) lg() Exp {
+	p.debug("lg")
 	node := p.add()
 
 	switch p.cur.Kind {
@@ -746,6 +809,7 @@ func (p *Parser) lg() Exp {
 }
 
 func (p *Parser) add() Exp {
+	p.debug("add")
 	node := p.mul()
 
 	for p.cur.Kind == token.PLUS || p.cur.Kind == token.MINUS {
@@ -769,6 +833,7 @@ func (p *Parser) add() Exp {
 }
 
 func (p *Parser) mul() Exp {
+	p.debug("mul")
 	node := p.unary()
 
 	for p.cur.Kind == token.ASTERISK || p.cur.Kind == token.SLASH {
@@ -792,6 +857,7 @@ func (p *Parser) mul() Exp {
 }
 
 func (p *Parser) unary() Exp {
+	p.debug("unary")
 	switch p.cur.Kind {
 	case token.PLUS:
 		fallthrough
@@ -815,6 +881,7 @@ func (p *Parser) unary() Exp {
 }
 
 func (p *Parser) primary() Exp {
+	p.debug("primary")
 	switch p.cur.Kind {
 	case token.NUM:
 		return p.num()
@@ -883,6 +950,12 @@ func Scale(infix *InfixExp) *InfixExp {
 
 func (p *Parser) expect(token *token.Token, kinds ...token.TokenKind) {
 	p.tzer.Expect(token, kinds...)
+}
+
+func (p *Parser) debug(s string, args ...interface{}) {
+	if DEBUG {
+		fmt.Printf(s + "\n")
+	}
 }
 
 func alignTo(n, align int) int {

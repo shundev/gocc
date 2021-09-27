@@ -160,11 +160,13 @@ func (g *Generator) walk(node parser.Node) {
 		}
 	case *parser.DeclarationExp:
 		for _, local := range ty.LV.Locals {
-			g.address(local)
-			g.push(RAX) // 直近2つのRAXが必要な場合は前のRAXをスタックに退避
-			g.walk(ty.Exp)
-			g.pop(RDI)
-			g.mov("["+RDI+"]", RAX)
+			if ty.Exp != nil {
+				g.address(local)
+				g.push(RAX) // 直近2つのRAXが必要な場合は前のRAXをスタックに退避
+				g.walk(ty.Exp)
+				g.pop(RDI)
+				g.mov("["+RDI+"]", RAX)
+			}
 		}
 	case *parser.InfixExp:
 		infix, _ := node.(*parser.InfixExp)

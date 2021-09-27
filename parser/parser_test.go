@@ -11,6 +11,10 @@ func TestParseInfix(t *testing.T) {
 		want  string
 	}{
 		{
+			"int *a = 0, **b, ***c;",
+			"{ int* a = 0; int** b, *** c; }",
+		},
+		{
 			"-1 + (10 * -2) - 5 / 100;",
 			"(((-1) + (10 * (-2))) - (5 / 100));",
 		},
@@ -40,11 +44,11 @@ func TestParseInfix(t *testing.T) {
 		},
 		{
 			"int ab1000 = 999;",
-			"int ab1000 = 999;",
+			"{ int ab1000 = 999; }",
 		},
 		{
 			"int a = 1; int b = 1; int c = 1; a = b = c = 1;",
-			"int a = 1; int b = 1; int c = 1; (a = (b = (c = 1)));",
+			"{ int a = 1; } { int b = 1; } { int c = 1; } (a = (b = (c = 1)));",
 		},
 		{
 			"",
@@ -56,11 +60,11 @@ func TestParseInfix(t *testing.T) {
 		},
 		{
 			"int a = 10;int b = 10; int c = 20;return a + b + c;",
-			"int a = 10; int b = 10; int c = 20; return ((a + b) + c);",
+			"{ int a = 10; } { int b = 10; } { int c = 20; } return ((a + b) + c);",
 		},
 		{
-			"int a = 10;return a; return 20;",
 			"int a = 10; return a; return 20;",
+			"{ int a = 10; } return a; return 20;",
 		},
 		{
 			"if (a == 10) return b;",
@@ -68,7 +72,7 @@ func TestParseInfix(t *testing.T) {
 		},
 		{
 			"int a = 0; if (a = 1 == 10) return b; else return a + 10;",
-			"int a = 0; if ((a = (1 == 10))) return b; else return (a + 10);",
+			"{ int a = 0; } if ((a = (1 == 10))) return b; else return (a + 10);",
 		},
 		{
 			"while (a == 10) return a;",
@@ -76,11 +80,11 @@ func TestParseInfix(t *testing.T) {
 		},
 		{
 			"int a = 10; for (int i=0; i<10;i = i + 1) a = a + 3;",
-			"int a = 10; for (int i = 0;(i < 10);(i = (i + 1))) (a = (a + 3));",
+			"{ int a = 10; } for ({ int i = 0; };(i < 10);(i = (i + 1))) (a = (a + 3));",
 		},
 		{
 			"int i = 0; for (; i<10;) i = i + 1;",
-			"int i = 0; for (;(i < 10);) (i = (i + 1));",
+			"{ int i = 0; } for (;(i < 10);) (i = (i + 1));",
 		},
 		{
 			"if (1) { a; b; c; return d;}",
@@ -104,7 +108,15 @@ func TestParseInfix(t *testing.T) {
 		},
 		{
 			"int a = 0;",
-			"int a = 0;",
+			"{ int a = 0; }",
+		},
+		{
+			"int;",
+			"{}",
+		},
+		{
+			"int a;",
+			"{ int a; }",
 		},
 	}
 

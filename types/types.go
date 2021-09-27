@@ -1,7 +1,7 @@
 package types
 
 const (
-	INT         = "int"
+	INT         = "INT"
 	INT_POINTER = "INT_POINTER"
 )
 
@@ -17,7 +17,7 @@ type Int struct {
 }
 
 func (t *Int) String() string {
-	return INT
+	return "int"
 }
 
 type IntPointer struct {
@@ -25,7 +25,18 @@ type IntPointer struct {
 }
 
 func (t *IntPointer) String() string {
-	return INT_POINTER
+	s := "*"
+	base := t.Base
+	for {
+		switch ty := base.(type) {
+		case *Int:
+			s = "int" + s
+			return s
+		case *IntPointer:
+			s = "*" + s
+			base = ty.Base
+		}
+	}
 }
 
 func GetInt() Type {

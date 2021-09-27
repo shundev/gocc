@@ -16,8 +16,7 @@ assert() {
   fi
 }
 
-#assert 22 "{ a=b=c=d=e=f=g=h=i=j=k=2; return a+b+c+d+e+f+g+h+i+j+k; }"
-#assert 50 "{ int a = 10;b = c= 20; return a + b + c; }"
+assert 22 "{ int a,b,c,d,e,f,g,h,i,j,k; a=b=c=d=e=f=g=h=i=j=k=2; return a+b+c+d+e+f+g+h+i+j+k; }"
 assert 3  "{ int x=3; int y=5; int z=7; return *(&x+0); }"
 assert 7  "{ int x=3; int y=5; int z=7; return *(&x+2) ; }"
 assert 5  "{ int x=3; int y=5; return *(&x+1); }"
