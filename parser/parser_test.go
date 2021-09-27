@@ -118,6 +118,10 @@ func TestParseInfix(t *testing.T) {
 			"int main () { int a; }",
 			"int main () { int a; }",
 		},
+		{
+			"int foo (int a, int b, int hello99) { return a + b + hello99; }",
+			"int foo (int a, int b, int hello99) { return ((a + b) + hello99); }",
+		},
 	}
 
 	for i, tt := range tests {

@@ -103,6 +103,23 @@ func (n *LocalVariableNode) Type() types.Type {
 	return n.Locals[0].Type
 }
 
+type FuncDefArgs struct {
+	LV *LocalVariableNode
+}
+
+func (n *FuncDefArgs) String() string {
+	var out bytes.Buffer
+
+	ss := []string{}
+	for _, local := range n.LV.Locals {
+		ss = append(ss, local.String())
+	}
+	out.WriteString("(")
+	out.WriteString(strings.Join(ss, ", "))
+	out.WriteString(")")
+	return out.String()
+}
+
 /* Num */
 
 type NumExp struct {
@@ -445,6 +462,7 @@ type FuncDefNode struct {
 	Type      types.Type
 	Offsets   map[string]int
 	StackSize int
+	Args      *FuncDefArgs
 	offsetCnt int
 	token     *token.Token
 }
@@ -458,7 +476,9 @@ func (n *FuncDefNode) String() string {
 	out.WriteString(n.Type.String())
 	out.WriteString(" ")
 	out.WriteString(n.Name)
-	out.WriteString(" () ")
+	out.WriteString(" ")
+	out.WriteString(n.Args.String())
+	out.WriteString(" ")
 	out.WriteString(n.Body.String())
 	return out.String()
 }
@@ -476,7 +496,8 @@ func (n *FuncDefNode) PrepareStackSize() {
 
 /*
 program   = funcdef funcdef*
-funcdef   = declspec declarator '(" ")" blockStmt
+funcdef   = declspec declarator funcargs blockStmt
+funcargs  = "(" declspec declarator ("," declspec declarator)* ")" | "(" ")"
 blockstmt = "{" stmt* "}"
 stmt      = (declaration ";") | (return expr ";") | (expr ";") | ifstmt | whilestmt | blockstmt
 forstmt   = "for" "(" (expr|declaration)? ";" expr? ";" expr? ")" stmt
@@ -560,15 +581,42 @@ func (p *Parser) funcdef() *FuncDefNode {
 	p.curFn = &FuncDefNode{token: p.cur, Offsets: map[string]int{}}
 	baseTy := p.declspec()
 	ty, identTkn := p.declarator(baseTy)
-	p.nextTkn()
-	p.expect(p.cur, token.LPAREN)
-	p.nextTkn()
-	p.expect(p.cur, token.RPAREN)
-	p.nextTkn()
+	args := p.funcdefargs()
 	p.curFn.Body = p.blockStmt()
 	p.curFn.Type = ty
 	p.curFn.Name = identTkn.Str
+	p.curFn.Args = args
 	return p.curFn
+}
+
+func (p *Parser) funcdefargs() *FuncDefArgs {
+	p.expect(p.cur, token.LPAREN)
+	lv := &LocalVariableNode{
+		Locals: []*LocalVariable{}, token: p.cur}
+	args := &FuncDefArgs{LV: lv}
+	p.nextTkn()
+
+	if p.cur.Kind == token.RPAREN {
+		p.nextTkn()
+		return args
+	}
+
+	basety1 := p.declspec()
+	ty1, identTok := p.declarator(basety1)
+	arg1 := &LocalVariable{Name: identTok.Str, Type: ty1}
+	args.LV.Locals = append(args.LV.Locals, arg1)
+
+	for p.cur.Kind == token.COMMA {
+		p.nextTkn()
+		basety := p.declspec()
+		ty, identTok := p.declarator(basety)
+		arg := &LocalVariable{Name: identTok.Str, Type: ty}
+		args.LV.Locals = append(args.LV.Locals, arg)
+	}
+
+	p.expect(p.cur, token.RPAREN)
+	p.nextTkn()
+	return args
 }
 
 func (p *Parser) stmt() Stmt {
@@ -620,9 +668,13 @@ func (p *Parser) declarator(ty types.Type) (types.Type, *token.Token) {
 
 	switch ty := ty.(type) {
 	case *types.Int:
-		return ty, p.cur
+		tok := p.cur
+		p.nextTkn()
+		return ty, tok
 	case *types.IntPointer:
-		return ty, p.cur
+		tok := p.cur
+		p.nextTkn()
+		return ty, tok
 	default:
 		fmt.Fprintf(os.Stderr, "Invalid type.")
 		os.Exit(1)
@@ -646,7 +698,6 @@ func (p *Parser) declarationStmt() *StmtListNode {
 		}
 
 		ty, identTok := p.declarator(baseTy) // "**a"
-		p.nextTkn()                          // ident
 
 		local := &LocalVariable{Name: identTok.Str, Type: ty}
 		locals = append(locals, local)
