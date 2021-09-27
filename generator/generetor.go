@@ -24,8 +24,6 @@ type Generator struct {
 	parser    *parser.Parser
 	out       io.Writer
 	lblCnt    int
-	offsets   map[string]int
-	stackSize int
 	currentFn *parser.FuncDefNode
 }
 
@@ -38,8 +36,6 @@ func (g *Generator) Gen() {
 	g.header()
 
 	node := g.parser.Parse()
-	g.offsets = node.Offsets
-	g.stackSize = node.StackSize()
 
 	g.walk(node)
 }
@@ -142,7 +138,7 @@ func (g *Generator) walk(node parser.Node) {
 	case *parser.FuncDefNode:
 		g.currentFn = ty
 		g.label(ty.Name)
-		g.prolog(g.stackSize)
+		g.prolog(ty.StackSize)
 		g.walk(ty.Body)
 		g.label(fmt.Sprintf(".L.return.%s", ty.Name))
 		g.epilog()
@@ -365,11 +361,11 @@ func (g *Generator) genLbl() string {
 }
 
 func (g *Generator) getOffset(name string) int {
-	offset, ok := g.offsets[name]
+	offset, ok := g.currentFn.Offsets[name]
 	if !ok {
 		fmt.Fprintf(os.Stderr, "Invalid ident name: %s\n", name)
 		os.Exit(1)
 	}
 
-	return g.stackSize - offset + 8
+	return g.currentFn.StackSize - offset + 8
 }

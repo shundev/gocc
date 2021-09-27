@@ -419,18 +419,6 @@ func (n *BlockStmt) String() string {
 
 type ProgramNode struct {
 	FuncDefs []*FuncDefNode
-	Offsets  map[string]int
-}
-
-func (n *ProgramNode) StackSize() int {
-	max := 0
-	for _, v := range n.Offsets {
-		if v > max {
-			max = v
-		}
-	}
-
-	return alignTo(max, 16)
 }
 
 func (n *ProgramNode) TokenLiteral() string {
@@ -452,10 +440,13 @@ func (n *ProgramNode) String() string {
 /* Func Def */
 
 type FuncDefNode struct {
-	Body  *BlockStmt
-	Name  string
-	Type  types.Type
-	token *token.Token
+	Body      *BlockStmt
+	Name      string
+	Type      types.Type
+	Offsets   map[string]int
+	StackSize int
+	offsetCnt int
+	token     *token.Token
 }
 
 func (n *FuncDefNode) TokenLiteral() string {
@@ -470,6 +461,17 @@ func (n *FuncDefNode) String() string {
 	out.WriteString(" () ")
 	out.WriteString(n.Body.String())
 	return out.String()
+}
+
+func (n *FuncDefNode) PrepareStackSize() {
+	max := 0
+	for _, v := range n.Offsets {
+		if v > max {
+			max = v
+		}
+	}
+
+	n.StackSize = alignTo(max, 16)
 }
 
 /*
@@ -506,21 +508,21 @@ declspec = "int"
 type Parser struct {
 	tzer      *token.Tokenizer
 	head, cur *token.Token
-	offsetCnt int
-	offsets   map[string]int
+	curFn     *FuncDefNode
 }
 
 func New(tzer *token.Tokenizer) *Parser {
 	parser := &Parser{tzer: tzer}
 	parser.head = parser.tzer.Tokenize()
 	parser.cur = parser.head
-	parser.offsets = make(map[string]int)
 	return parser
 }
 
 func (p *Parser) Parse() *ProgramNode {
 	node := p.program()
-	node.Offsets = p.offsets
+	for _, funcdef := range node.FuncDefs {
+		funcdef.PrepareStackSize()
+	}
 	return node
 }
 
@@ -555,7 +557,7 @@ func (p *Parser) program() *ProgramNode {
 }
 
 func (p *Parser) funcdef() *FuncDefNode {
-	tok := p.cur
+	p.curFn = &FuncDefNode{token: p.cur, Offsets: map[string]int{}}
 	baseTy := p.declspec()
 	ty, identTkn := p.declarator(baseTy)
 	p.nextTkn()
@@ -563,13 +565,10 @@ func (p *Parser) funcdef() *FuncDefNode {
 	p.nextTkn()
 	p.expect(p.cur, token.RPAREN)
 	p.nextTkn()
-	block := p.blockStmt()
-	return &FuncDefNode{
-		Body:  block,
-		Type:  ty,
-		Name:  identTkn.Str,
-		token: tok,
-	}
+	p.curFn.Body = p.blockStmt()
+	p.curFn.Type = ty
+	p.curFn.Name = identTkn.Str
+	return p.curFn
 }
 
 func (p *Parser) stmt() Stmt {
@@ -659,12 +658,12 @@ func (p *Parser) declarationStmt() *StmtListNode {
 		p.nextTkn() // "="
 
 		for _, local := range locals {
-			if _, exists := p.offsets[local.Name]; exists {
+			if _, exists := p.curFn.Offsets[local.Name]; exists {
 				p.tzer.Error(p.cur.Col, "Declared already: %s", p.cur.Str)
 			}
 
-			p.offsetCnt += 8
-			p.offsets[local.Name] = p.offsetCnt
+			p.curFn.offsetCnt += 8
+			p.curFn.Offsets[local.Name] = p.curFn.offsetCnt
 		}
 
 		left := &LocalVariableNode{Locals: locals, token: initTok}
@@ -677,12 +676,12 @@ func (p *Parser) declarationStmt() *StmtListNode {
 
 	if len(locals) > 0 {
 		for _, local := range locals {
-			if _, exists := p.offsets[local.Name]; exists {
+			if _, exists := p.curFn.Offsets[local.Name]; exists {
 				p.tzer.Error(p.cur.Col, "Declared already: %s", p.cur.Str)
 			}
 
-			p.offsetCnt += 8
-			p.offsets[local.Name] = p.offsetCnt
+			p.curFn.offsetCnt += 8
+			p.curFn.Offsets[local.Name] = p.curFn.offsetCnt
 		}
 
 		left := &LocalVariableNode{Locals: locals, token: initTok}
@@ -825,7 +824,7 @@ func (p *Parser) assign() Exp {
 
 		// TODO: duplicate left value check
 		if ident, ok := infix.Left.(*IdentExp); ok {
-			if _, exists := p.offsets[ident.Name]; !exists {
+			if _, exists := p.curFn.Offsets[ident.Name]; !exists {
 				p.tzer.Error(ident.token.Col, "Variable not found.")
 			}
 		}
