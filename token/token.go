@@ -32,6 +32,7 @@ const (
 	SEMICOLLON = ";"
 	COMMA      = ","
 	RETURN     = "RETURN"
+	SIZEOF     = "SIZEOF"
 	IF         = "IF"
 	ELSE       = "ELSE"
 	WHILE      = "WHILE"
@@ -184,7 +185,10 @@ func (t *Tokenizer) Tokenize() *Token {
 			cur = newToken(EOF, cur, 0, "", t.idx)
 			return head.Next
 		default:
-			if newIdx, ok := tryKeyword(t.code, t.idx, "int"); ok {
+			if newIdx, ok := tryKeyword(t.code, t.idx, "sizeof"); ok {
+				cur = newToken(SIZEOF, cur, 0, "sizeof", t.idx)
+				t.idx = newIdx
+			} else if newIdx, ok := tryKeyword(t.code, t.idx, "int"); ok {
 				cur = newToken(TYPE, cur, 0, "int", t.idx)
 				t.idx = newIdx
 			} else if newIdx, ok := tryKeyword(t.code, t.idx, "return"); ok {

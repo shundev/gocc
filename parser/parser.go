@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-const DEBUG = true
+const DEBUG = false
 
 type LocalVariable struct {
 	Name   string
@@ -83,24 +83,12 @@ func (n *LocalVariableNode) String() string {
 	var out bytes.Buffer
 
 	ss := []string{}
-	for i, local := range n.Locals {
+	for _, local := range n.Locals {
 		s := local.String()
-		if i > 0 {
-			s = strings.TrimPrefix(s, "int")
-		}
 		ss = append(ss, s)
 	}
 	out.WriteString(strings.Join(ss, ", "))
 	return out.String()
-}
-
-func (n *LocalVariableNode) Type() types.Type {
-	// TODO: 意味をなさない
-	if len(n.Locals) == 0 {
-		return nil
-	}
-
-	return n.Locals[0].Type
 }
 
 type FuncDefArgs struct {
@@ -171,31 +159,28 @@ func (n *InfixExp) Type() types.Type {
 
 /* Declaration */
 
-type DeclarationExp struct {
+type DeclarationStmt struct {
 	LV    *LocalVariableNode
 	Exp   Exp
 	Op    string
 	token *token.Token
 }
 
-func (n *DeclarationExp) expNode() {}
+func (n *DeclarationStmt) stmtNode() {}
 
-func (n *DeclarationExp) TokenLiteral() string {
+func (n *DeclarationStmt) TokenLiteral() string {
 	return n.token.Str
 }
 
-func (n *DeclarationExp) String() string {
+func (n *DeclarationStmt) String() string {
 	var out bytes.Buffer
 	out.WriteString(n.LV.String())
 	if n.Exp != nil {
 		out.WriteString(" " + n.Op + " ")
 		out.WriteString(n.Exp.String())
 	}
+	out.WriteString(";")
 	return out.String()
-}
-
-func (n *DeclarationExp) Type() types.Type {
-	return n.LV.Type()
 }
 
 /* Unary */
@@ -230,10 +215,12 @@ func (n *UnaryExp) Type() types.Type {
 	case "*":
 		return types.GetInt()
 	case "&":
-		return types.PointerTo(types.GetInt())
+		return types.PointerTo(n.Right.Type())
+	case "sizeof":
+		return types.GetInt()
 	}
 
-	fmt.Fprintf(os.Stderr, "Invalid op: %s", n.Op)
+	fmt.Fprintf(os.Stderr, "Invalid op: %s\n", n.Op)
 	os.Exit(1)
 	return types.GetInt()
 }
@@ -243,6 +230,7 @@ func (n *UnaryExp) Type() types.Type {
 type IdentExp struct {
 	Name  string
 	token *token.Token
+	typ   types.Type
 }
 
 func (n *IdentExp) expNode() {}
@@ -256,7 +244,7 @@ func (n *IdentExp) String() string {
 }
 
 func (n *IdentExp) Type() types.Type {
-	return types.GetInt()
+	return n.typ
 }
 
 /* Func Call Params */
@@ -291,6 +279,7 @@ type FuncCallExp struct {
 	Name   string
 	Params *FuncCallParams
 	token  *token.Token
+	def    *FuncDefNode
 }
 
 func (n *FuncCallExp) expNode() {}
@@ -300,8 +289,7 @@ func (n *FuncCallExp) TokenLiteral() string {
 }
 
 func (n *FuncCallExp) Type() types.Type {
-	// FIXME
-	return types.GetInt()
+	return n.def.Type
 }
 
 func (n *FuncCallExp) String() string {
@@ -535,7 +523,7 @@ eq          = lg ("==" lg)?
 lg          = add ("<" add)?
 add         = mul ("+" mul | "-" mul)*
 mul         = unary ("*" unary | "/" unary)*
-unary       = ("+" | "-")? primary
+unary       = ("+" | "-" | "sizeof")? primary
 primary     = num | funccall | ident | "(" expr ")"
 funccall    = ident funcparams
 funcparams  = "(" ( expr ("," expr)* ")" | ")")
@@ -557,10 +545,16 @@ type Parser struct {
 	tzer      *token.Tokenizer
 	head, cur *token.Token
 	curFn     *FuncDefNode
+	locals    map[string]types.Type
+	funcdefs  map[string]*FuncDefNode
 }
 
 func New(tzer *token.Tokenizer) *Parser {
-	parser := &Parser{tzer: tzer}
+	parser := &Parser{
+		tzer:     tzer,
+		locals:   map[string]types.Type{},
+		funcdefs: map[string]*FuncDefNode{},
+	}
 	parser.head = parser.tzer.Tokenize()
 	parser.cur = parser.head
 	return parser
@@ -608,11 +602,13 @@ func (p *Parser) funcdef() *FuncDefNode {
 	p.curFn = &FuncDefNode{token: p.cur, Offsets: map[string]int{}}
 	baseTy := p.declspec()
 	ty, identTkn := p.declarator(baseTy)
-	args := p.funcdefargs()
-	p.curFn.Body = p.blockStmt()
 	p.curFn.Type = ty
 	p.curFn.Name = identTkn.Str
-	p.curFn.Args = args
+	p.curFn.Args = p.funcdefargs()
+
+	// Defined prior to parsing body in order to be called recursively.
+	p.funcdefs[p.curFn.Name] = p.curFn
+	p.curFn.Body = p.blockStmt()
 	return p.curFn
 }
 
@@ -651,6 +647,7 @@ func (p *Parser) funcdefargs() *FuncDefArgs {
 
 		p.curFn.offsetCnt += 8
 		p.curFn.Offsets[local.Name] = p.curFn.offsetCnt
+		p.locals[local.Name] = local.Type
 	}
 
 	return args
@@ -726,7 +723,7 @@ func (p *Parser) declarationStmt() *StmtListNode {
 	baseTy := p.declspec() // "int"
 
 	locals := []*LocalVariable{}
-	exps := []*ExpStmt{}
+	stmts := []*DeclarationStmt{}
 
 	// int a,b,c = 0, d = 3;
 	for p.cur.Kind != token.SEMICOLLON {
@@ -752,13 +749,13 @@ func (p *Parser) declarationStmt() *StmtListNode {
 
 			p.curFn.offsetCnt += 8
 			p.curFn.Offsets[local.Name] = p.curFn.offsetCnt
+			p.locals[local.Name] = local.Type
 		}
 
 		left := &LocalVariableNode{Locals: locals, token: initTok}
 		right := p.expr()
-		declExp := &DeclarationExp{LV: left, Exp: right, Op: "=", token: initTok}
-		expStmt := &ExpStmt{Exp: declExp, token: initTok}
-		exps = append(exps, expStmt)
+		declStmt := &DeclarationStmt{LV: left, Exp: right, Op: "=", token: initTok}
+		stmts = append(stmts, declStmt)
 		locals = []*LocalVariable{}
 	}
 
@@ -770,18 +767,18 @@ func (p *Parser) declarationStmt() *StmtListNode {
 
 			p.curFn.offsetCnt += 8
 			p.curFn.Offsets[local.Name] = p.curFn.offsetCnt
+			p.locals[local.Name] = local.Type
 		}
 
 		left := &LocalVariableNode{Locals: locals, token: initTok}
-		declExp := &DeclarationExp{LV: left, Exp: nil, Op: "=", token: initTok}
-		expStmt := &ExpStmt{Exp: declExp, token: initTok}
-		exps = append(exps, expStmt)
+		declStmt := &DeclarationStmt{LV: left, Exp: nil, Op: "=", token: initTok}
+		stmts = append(stmts, declStmt)
 	}
 
 	stmtList := &StmtListNode{}
 	stmtList.Stmts = []Stmt{}
-	for _, expStmt := range exps {
-		stmtList.Stmts = append(stmtList.Stmts, expStmt)
+	for _, stmt := range stmts {
+		stmtList.Stmts = append(stmtList.Stmts, stmt)
 	}
 	p.expect(p.cur, token.SEMICOLLON)
 	p.nextTkn()
@@ -1017,6 +1014,8 @@ func (p *Parser) unary() Exp {
 		fallthrough
 	case token.ASTERISK:
 		fallthrough
+	case token.SIZEOF:
+		fallthrough
 	case token.AND:
 		node := &UnaryExp{
 			Right: nil,
@@ -1076,8 +1075,13 @@ func (p *Parser) ident() Exp {
 	if p.cur.Kind == token.LPAREN {
 		return p.funccall(tkn)
 	} else {
+		typ, ok := p.locals[tkn.Str]
+		if !ok {
+			fmt.Fprintf(os.Stderr, "Ident %s not defined.\n", tkn.Str)
+			os.Exit(1)
+		}
 		return &IdentExp{
-			Name: tkn.Str, token: tkn,
+			Name: tkn.Str, token: tkn, typ: typ,
 		}
 	}
 }
@@ -1087,8 +1091,17 @@ func (p *Parser) funccall(identTkn *token.Token) *FuncCallExp {
 	p.expect(p.cur, token.LPAREN)
 	p.nextTkn()
 
+	def, ok := p.funcdefs[identTkn.Str]
+	if !ok {
+		fmt.Fprintf(os.Stderr, "Function %s not defined.\n", identTkn.Str)
+		os.Exit(1)
+	}
+
 	exp := &FuncCallExp{
-		Name: identTkn.Str, token: identTkn, Params: &FuncCallParams{Exps: []Exp{}},
+		Name:   identTkn.Str,
+		Params: &FuncCallParams{Exps: []Exp{}},
+		token:  identTkn,
+		def:    def,
 	}
 
 	if p.cur.Kind == token.RPAREN {

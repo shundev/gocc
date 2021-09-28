@@ -16,6 +16,9 @@ assert() {
   fi
 }
 
+assert 14 sizeof1.c
+assert 18 sizeof2.c
+assert 4  sizeof3.c
 assert 66 manyfuncargs.c
 assert 55 fib.c
 assert 22 assign.c
@@ -37,7 +40,7 @@ assert 1  comp4.c
 assert 10 return.c
 assert 10 if1.c
 assert 15 if2.c
-assert 8 while1.c
+assert 8  while1.c
 assert 12 for1.c
 assert 20 for2.c
 echo OK

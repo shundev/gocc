@@ -16,7 +16,7 @@ func TestParseInfix(t *testing.T) {
 		},
 		{
 			"int main () { int *a = 0, **b, ***c; }",
-			"int main () { int* a = 0; int** b, *** c; }",
+			"int main () { int* a = 0; int** b, int*** c; }",
 		},
 		{
 			"int main() {-1 + (10 * -2) - 5 / 100;}",
@@ -67,16 +67,16 @@ func TestParseInfix(t *testing.T) {
 			"int main () { int a = 10; return a; return 20; }",
 		},
 		{
-			"int main () { if (a == 10) return b; }",
-			"int main () { if ((a == 10)) return b; }",
+			"int main () { int a,b; if (a == 10) return b; }",
+			"int main () { int a, int b; if ((a == 10)) return b; }",
 		},
 		{
-			"int main () { int a = 0; if (a = 1 == 10) return b; else return a + 10; }",
-			"int main () { int a = 0; if ((a = (1 == 10))) return b; else return (a + 10); }",
+			"int main () { int a,b = 0; if (a = 1 == 10) return b; else return a + 10; }",
+			"int main () { int a, int b = 0; if ((a = (1 == 10))) return b; else return (a + 10); }",
 		},
 		{
-			"int main () { while (a == 10) return a; }",
-			"int main () { while ((a == 10)) return a; }",
+			"int main () { int a; while (a == 10) return a; }",
+			"int main () { int a; while ((a == 10)) return a; }",
 		},
 		{
 			"int main () { int a = 10; for (int i=0; i<10;i = i + 1) a = a + 3; }",
@@ -87,24 +87,24 @@ func TestParseInfix(t *testing.T) {
 			"int main () { int i = 0; for (;(i < 10);) (i = (i + 1)); }",
 		},
 		{
-			"int main () { if (1) { a; b; c; return d;} }",
-			"int main () { if (1) { a; b; c; return d; } }",
+			"int main () { int a,b,c,d; if (1) { a; b; c; return d;} }",
+			"int main () { int a, int b, int c, int d; if (1) { a; b; c; return d; } }",
 		},
 		{
-			"int main () { foo    ( ); }",
-			"int main () { foo(); }",
+			"int foo() { } int main () { foo    ( ); }",
+			"int foo () {  } int main () { foo(); }",
 		},
 		{
-			"int main () { --a; }",
-			"int main () { (-(-a)); }",
+			"int main () { int a; --a; }",
+			"int main () { int a; (-(-a)); }",
 		},
 		{
-			"int main () { &*a; }",
-			"int main () { (&(*a)); }",
+			"int main () { int a; &*a; }",
+			"int main () { int a; (&(*a)); }",
 		},
 		{
-			"int main () { *(&a-1); }",
-			"int main () { (*((&a) - 1)); }",
+			"int main () { int a; *(&a-1); }",
+			"int main () { int a; (*((&a) - 1)); }",
 		},
 		{
 			"int main () { int a = 0; }",
@@ -125,6 +125,14 @@ func TestParseInfix(t *testing.T) {
 		{
 			"int foo (int a, int b, int hello99) { return a + b + hello99; } int main() { return foo(1,2,3); }",
 			"int foo (int a, int b, int hello99) { return ((a + b) + hello99); } int main () { return foo(1, 2, 3); }",
+		},
+		{
+			"int main() { int x; sizeof(x + 4); }",
+			"int main () { int x; (sizeof(x + 4)); }",
+		},
+		{
+			"int main() { int x; sizeof x * 4; }",
+			"int main () { int x; ((sizeofx) * 4); }",
 		},
 	}
 

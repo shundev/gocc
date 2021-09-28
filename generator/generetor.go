@@ -183,20 +183,22 @@ func (g *Generator) walk(node parser.Node) {
 		g.label(fmt.Sprintf(".L.return.%s", ty.Name))
 		g.epilog()
 	case *parser.UnaryExp:
-		unary := ty
-		switch unary.Op {
+		switch ty.Op {
 		case "&":
-			g.address(g.currentFn, unary.Right) // RAXに目標のアドレスが載る
+			g.address(g.currentFn, ty.Right) // RAXに目標のアドレスが載る
 		case "*":
-			g.walk(unary.Right) // RAXに目標のアドレスが載る
+			g.walk(ty.Right) // RAXに目標のアドレスが載る
 			g.mov(RAX, "["+RAX+"]")
 		case "+":
 			// do nothing ( +5 -> 5)
 		case "-":
-			g.walk(unary.Right)
+			g.walk(ty.Right)
 			g.neg(RAX)
+		case "sizeof":
+			size := reduceSizeof(ty)
+			g.mov(RAX, fmt.Sprintf("%d", size))
 		}
-	case *parser.DeclarationExp:
+	case *parser.DeclarationStmt:
 		for _, local := range ty.LV.Locals {
 			if ty.Exp != nil {
 				g.address(g.currentFn, local)
@@ -409,4 +411,17 @@ func (g *Generator) getOffset(fn *parser.FuncDefNode, name string) int {
 	}
 
 	return fn.StackSize - offset + 8
+}
+
+func reduceSizeof(unary *parser.UnaryExp) int {
+	switch unary.Right.Type().(type) {
+	case *types.Int:
+		return 4
+	case *types.IntPointer:
+		return 8
+	}
+
+	fmt.Fprintf(os.Stderr, "Invalid sizeof arg: %+v\n", unary.Right.Type())
+	os.Exit(1)
+	return 0
 }
