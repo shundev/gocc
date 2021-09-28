@@ -92,7 +92,7 @@ func TestParseInfix(t *testing.T) {
 		},
 		{
 			"int main () { foo    ( ); }",
-			"int main () { foo (); }",
+			"int main () { foo(); }",
 		},
 		{
 			"int main () { --a; }",
@@ -122,6 +122,10 @@ func TestParseInfix(t *testing.T) {
 			"int foo (int a, int b, int hello99) { return a + b + hello99; }",
 			"int foo (int a, int b, int hello99) { return ((a + b) + hello99); }",
 		},
+		{
+			"int foo (int a, int b, int hello99) { return a + b + hello99; } int main() { return foo(1,2,3); }",
+			"int foo (int a, int b, int hello99) { return ((a + b) + hello99); } int main () { return foo(1, 2, 3); }",
+		},
 	}
 
 	for i, tt := range tests {
@@ -139,6 +143,6 @@ func testNode(t *testing.T, i int, node Node, want string) {
 	}
 
 	if node.String() != want {
-		t.Fatalf("%d: Wrong Node: got=%s, want=%s", i, node.String(), want)
+		t.Fatalf("%d: Wrong Node:\ngot =%s,\nwant=%s", i, node.String(), want)
 	}
 }

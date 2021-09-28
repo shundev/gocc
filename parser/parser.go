@@ -259,11 +259,38 @@ func (n *IdentExp) Type() types.Type {
 	return types.GetInt()
 }
 
+/* Func Call Params */
+
+type FuncCallParams struct {
+	Exps []Exp
+}
+
+func (n *FuncCallParams) TokenLiteral() string {
+	if len(n.Exps) == 0 {
+		return ""
+	}
+
+	return n.Exps[0].TokenLiteral()
+}
+
+func (n *FuncCallParams) String() string {
+	var out bytes.Buffer
+	ss := []string{}
+	for _, exp := range n.Exps {
+		ss = append(ss, exp.String())
+	}
+	out.WriteString("(")
+	out.WriteString(strings.Join(ss, ", "))
+	out.WriteString(")")
+	return out.String()
+}
+
 /* Function */
 
 type FuncCallExp struct {
-	Name  string
-	token *token.Token
+	Name   string
+	Params *FuncCallParams
+	token  *token.Token
 }
 
 func (n *FuncCallExp) expNode() {}
@@ -280,8 +307,7 @@ func (n *FuncCallExp) Type() types.Type {
 func (n *FuncCallExp) String() string {
 	var out bytes.Buffer
 	out.WriteString(n.Name)
-	out.WriteString(" (")
-	out.WriteString(")")
+	out.WriteString(n.Params.String())
 	return out.String()
 }
 
@@ -495,23 +521,24 @@ func (n *FuncDefNode) PrepareStackSize() {
 }
 
 /*
-program   = funcdef funcdef*
-funcdef   = declspec declarator funcargs blockStmt
-funcargs  = "(" declspec declarator ("," declspec declarator)* ")" | "(" ")"
-blockstmt = "{" stmt* "}"
-stmt      = (declaration ";") | (return expr ";") | (expr ";") | ifstmt | whilestmt | blockstmt
-forstmt   = "for" "(" (expr|declaration)? ";" expr? ";" expr? ")" stmt
-ifstmt    = "if" "(" expr ")" stmt ("else" stmt)?
-whilestmt = "while" "(" expr ")" stmt
-expr      = assign
-assign    = eq ("=" assign)?
-eq        = lg ("==" lg)?
-lg        = add ("<" add)?
-add       = mul ("+" mul | "-" mul)*
-mul       = unary ("*" unary | "/" unary)*
-unary     = ("+" | "-")? primary
-primary   = num | funccall | ident | "(" expr ")"
-funccall  = ident "(" ")"
+program     = funcdef funcdef*
+funcdef     = declspec declarator funcargs blockStmt
+funcargs    = "(" declspec declarator ("," declspec declarator)* ")" | "(" ")"
+blockstmt   = "{" stmt* "}"
+stmt        = (declaration ";") | (return expr ";") | (expr ";") | ifstmt | whilestmt | blockstmt
+forstmt     = "for" "(" (expr|declaration)? ";" expr? ";" expr? ")" stmt
+ifstmt      = "if" "(" expr ")" stmt ("else" stmt)?
+whilestmt   = "while" "(" expr ")" stmt
+expr        = assign
+assign      = eq ("=" assign)?
+eq          = lg ("==" lg)?
+lg          = add ("<" add)?
+add         = mul ("+" mul | "-" mul)*
+mul         = unary ("*" unary | "/" unary)*
+unary       = ("+" | "-")? primary
+primary     = num | funccall | ident | "(" expr ")"
+funccall    = ident funcparams
+funcparams  = "(" ( expr ("," expr)* ")" | ")")
 
 declaration =
   declspec
@@ -1037,17 +1064,45 @@ func (p *Parser) ident() Exp {
 	p.nextTkn()
 
 	if p.cur.Kind == token.LPAREN {
-		p.nextTkn()
-		p.expect(p.cur, token.RPAREN)
-		p.nextTkn()
-		return &FuncCallExp{
-			Name: tkn.Str, token: tkn,
-		}
+		return p.funccall(tkn)
 	} else {
 		return &IdentExp{
 			Name: tkn.Str, token: tkn,
 		}
 	}
+}
+
+func (p *Parser) funccall(identTkn *token.Token) *FuncCallExp {
+	p.expect(identTkn, token.IDENT)
+	p.expect(p.cur, token.LPAREN)
+	p.nextTkn()
+
+	exp := &FuncCallExp{
+		Name: identTkn.Str, token: identTkn, Params: &FuncCallParams{Exps: []Exp{}},
+	}
+
+	if p.cur.Kind == token.RPAREN {
+		p.nextTkn()
+		return exp
+	}
+
+	exp.Params = p.funccallparams()
+	return exp
+}
+
+func (p *Parser) funccallparams() *FuncCallParams {
+	params := &FuncCallParams{Exps: []Exp{}}
+	param1 := p.expr()
+	params.Exps = append(params.Exps, param1)
+	for p.cur.Kind == token.COMMA {
+		p.nextTkn()
+		param := p.expr()
+		params.Exps = append(params.Exps, param)
+	}
+
+	p.expect(p.cur, token.RPAREN)
+	p.nextTkn()
+	return params
 }
 
 func Scale(infix *InfixExp) *InfixExp {
