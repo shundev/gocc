@@ -19,6 +19,8 @@ assert() {
 assert 14 sizeof1.c
 assert 18 sizeof2.c
 assert 4  sizeof3.c
+assert 8  sizeof4.c
+assert 4  sizeof5.c
 assert 66 manyfuncargs.c
 assert 55 fib.c
 assert 22 assign.c
