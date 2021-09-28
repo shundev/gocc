@@ -16,6 +16,7 @@ assert() {
   fi
 }
 
+assert 33 "int main () { return add(10, 23); }"
 assert 13 "int hoge () { int a = 3; return a; } int fuga() { int a = 10; return a; } int main() { int a = hoge(); int b = fuga(); return a + b; }"
 assert 35 "int hoge () { return 10; } int fuga() { return 25; } int main() { return hoge() + fuga(); }"
 assert 22 "int main () { int a,b,c,d,e,f,g,h,i,j,k; a=b=c=d=e=f=g=h=i=j=k=2; return a+b+c+d+e+f+g+h+i+j+k; }"

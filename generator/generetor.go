@@ -14,11 +14,18 @@ const HEADER = `.intel_syntax noprefix
 
 const (
 	RAX = "rax"
-	RDI = "rdi"
 	RBP = "rbp" // base pointer
 	RSP = "rsp" // stack pointer
 	AL  = "al"
+	RDI = "rdi" // 1st param
+	RSI = "rsi" // 2nd param
+	RDX = "rdx" // 3rd param
+	RCX = "rcx" // 4th param
+	R8D = "r8"  // 5th param
+	R9D = "r9"  // 6th param
 )
+
+var FUNCCALLREGS = []string{RDI, RSI, RDX, RCX, R8D, R9D}
 
 type Generator struct {
 	parser    *parser.Parser
@@ -134,6 +141,17 @@ func (g *Generator) walk(node parser.Node) {
 		g.mov(RAX, "["+RAX+"]")
 	case *parser.FuncCallExp:
 		// 関数呼び出し
+		// FIXME: 型チェック
+		for i, param := range ty.Params.Exps {
+			g.walk(param)
+			if i >= len(FUNCCALLREGS) {
+				g.push(RAX)
+			} else {
+				g.mov(FUNCCALLREGS[i], RAX)
+			}
+		}
+		g.mov(RAX, "0")
+		// FIXME: need align before call?
 		g.call(ty.Name)
 	case *parser.FuncDefNode:
 		g.currentFn = ty
@@ -166,6 +184,7 @@ func (g *Generator) walk(node parser.Node) {
 				g.mov("["+RDI+"]", RAX)
 			}
 		}
+		// 戻り値はRAXに入っている
 	case *parser.InfixExp:
 		infix := ty
 		if infix.Op == "=" {
