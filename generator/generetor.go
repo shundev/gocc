@@ -32,10 +32,11 @@ type Generator struct {
 	out       io.Writer
 	lblCnt    int
 	currentFn *parser.FuncDefNode
+	fns       map[string]*parser.FuncDefNode
 }
 
 func New(p *parser.Parser, out io.Writer) *Generator {
-	gen := &Generator{parser: p, out: out}
+	gen := &Generator{parser: p, out: out, fns: map[string]*parser.FuncDefNode{}}
 	return gen
 }
 
@@ -48,7 +49,7 @@ func (g *Generator) Gen() {
 }
 
 // push corresponding address to the top of stack
-func (g *Generator) address(node interface{}) {
+func (g *Generator) address(fn *parser.FuncDefNode, node interface{}) {
 	switch ty := node.(type) {
 	case *parser.UnaryExp:
 		// Nested unary.
@@ -57,11 +58,11 @@ func (g *Generator) address(node interface{}) {
 			return
 		}
 	case *parser.LocalVariable:
-		offset := g.getOffset(ty.Name)
+		offset := g.getOffset(fn, ty.Name)
 		g.lea(RAX, RBP, -offset)
 		return
 	case *parser.IdentExp:
-		offset := g.getOffset(ty.Name)
+		offset := g.getOffset(fn, ty.Name)
 		g.lea(RAX, RBP, -offset)
 		return
 	}
@@ -137,7 +138,7 @@ func (g *Generator) walk(node parser.Node) {
 		g.mov(RAX, val)
 	case *parser.IdentExp:
 		// 変数呼び出し
-		g.address(ty)
+		g.address(g.currentFn, ty)
 		g.mov(RAX, "["+RAX+"]")
 	case *parser.FuncCallExp:
 		// 関数呼び出し
@@ -154,9 +155,30 @@ func (g *Generator) walk(node parser.Node) {
 		// FIXME: need align before call?
 		g.call(ty.Name)
 	case *parser.FuncDefNode:
+		g.fns[ty.Name] = ty
 		g.currentFn = ty
 		g.label(ty.Name)
 		g.prolog(ty.StackSize)
+
+		fn, ok := g.fns[ty.Name]
+		if !ok {
+			fmt.Fprintf(os.Stderr, "Function %s not found.\n", ty.Name)
+			os.Exit(1)
+		}
+
+		// Prepare params
+		for i, local := range ty.Args.LV.Locals {
+			offset := g.getOffset(fn, local.Name)
+			if i >= len(FUNCCALLREGS) {
+				g.pop(RDI)
+				g.lea(RAX, RBP, -offset)
+				g.mov("["+RAX+"]", RDI)
+			} else {
+				g.lea(RAX, RBP, -offset)
+				g.mov("["+RAX+"]", FUNCCALLREGS[i])
+			}
+		}
+
 		g.walk(ty.Body)
 		g.label(fmt.Sprintf(".L.return.%s", ty.Name))
 		g.epilog()
@@ -164,7 +186,7 @@ func (g *Generator) walk(node parser.Node) {
 		unary := ty
 		switch unary.Op {
 		case "&":
-			g.address(unary.Right) // RAXに目標のアドレスが載る
+			g.address(g.currentFn, unary.Right) // RAXに目標のアドレスが載る
 		case "*":
 			g.walk(unary.Right) // RAXに目標のアドレスが載る
 			g.mov(RAX, "["+RAX+"]")
@@ -177,7 +199,7 @@ func (g *Generator) walk(node parser.Node) {
 	case *parser.DeclarationExp:
 		for _, local := range ty.LV.Locals {
 			if ty.Exp != nil {
-				g.address(local)
+				g.address(g.currentFn, local)
 				g.push(RAX) // 直近2つのRAXが必要な場合は前のRAXをスタックに退避
 				g.walk(ty.Exp)
 				g.pop(RDI)
@@ -188,7 +210,7 @@ func (g *Generator) walk(node parser.Node) {
 	case *parser.InfixExp:
 		infix := ty
 		if infix.Op == "=" {
-			g.address(infix.Left)
+			g.address(g.currentFn, infix.Left)
 			g.push(RAX) // 直近2つのRAXが必要な場合は前のRAXをスタックに退避
 			g.walk(infix.Right)
 			g.pop(RDI)
@@ -379,12 +401,12 @@ func (g *Generator) genLbl() string {
 	return s
 }
 
-func (g *Generator) getOffset(name string) int {
-	offset, ok := g.currentFn.Offsets[name]
+func (g *Generator) getOffset(fn *parser.FuncDefNode, name string) int {
+	offset, ok := fn.Offsets[name]
 	if !ok {
 		fmt.Fprintf(os.Stderr, "Invalid ident name: %s\n", name)
 		os.Exit(1)
 	}
 
-	return g.currentFn.StackSize - offset + 8
+	return fn.StackSize - offset + 8
 }

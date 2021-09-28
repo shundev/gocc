@@ -16,6 +16,9 @@ assert() {
   fi
 }
 
+assert 66 "int f(int a, int b, int c, int d, int e, int g, int h, int i, int j) { int k=10,l=11; return a+b+c+d+e+g+h+i+j+k+l;} int main() { return f(1,2,3,4,5,6,7,8,9); }"
+assert 55 "int fib(int n) { if (n <= 2) return 1; else return fib(n-2) + fib(n-1); } int main() {return fib(10); }"
+assert 48 "int foo(int a, int b) { int c = 2; return a * b * c; } int main () { return foo(4, 6); }"
 assert 33 "int main () { return add(10, 23); }"
 assert 13 "int hoge () { int a = 3; return a; } int fuga() { int a = 10; return a; } int main() { int a = hoge(); int b = fuga(); return a + b; }"
 assert 35 "int hoge () { return 10; } int fuga() { return 25; } int main() { return hoge() + fuga(); }"

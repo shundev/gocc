@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-const DEBUG = false
+const DEBUG = true
 
 type LocalVariable struct {
 	Name   string
@@ -643,6 +643,16 @@ func (p *Parser) funcdefargs() *FuncDefArgs {
 
 	p.expect(p.cur, token.RPAREN)
 	p.nextTkn()
+
+	for _, local := range args.LV.Locals {
+		if _, exists := p.curFn.Offsets[local.Name]; exists {
+			p.tzer.Error(p.cur.Col, "Declared already: %s", p.cur.Str)
+		}
+
+		p.curFn.offsetCnt += 8
+		p.curFn.Offsets[local.Name] = p.curFn.offsetCnt
+	}
+
 	return args
 }
 
@@ -1124,7 +1134,7 @@ func (p *Parser) expect(token *token.Token, kinds ...token.TokenKind) {
 
 func (p *Parser) debug(s string, args ...interface{}) {
 	if DEBUG {
-		fmt.Printf(s + "\n")
+		fmt.Fprintf(os.Stderr, s+"\n")
 	}
 }
 
