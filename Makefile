@@ -3,12 +3,9 @@ all: test
 main: main.go token/*.go parser/*.go generator/*.go repl/*.go
 	go build main.go
 
-hello.o: c/hello.c
-	cc -c c/hello.c
-
 build: main
 
-test: main hello.o
+test: main
 	go test ./parser ./token ./generator ./repl
 	./test.sh
 
