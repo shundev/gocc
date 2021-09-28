@@ -26,6 +26,8 @@ assert 5  pointer3.c
 assert 3  pointer4.c
 assert 5  pointer5.c
 assert 5  pointer6.c
+assert 10 pointer7.c
+assert 10 pointer8.c
 assert 30 arith1.c
 assert 25 arith2.c
 assert 0  comp1.c
