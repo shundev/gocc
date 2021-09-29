@@ -10,7 +10,7 @@ import (
 	"os"
 )
 
-const INTEL_SYNTAX = false
+const INTEL_SYNTAX = true
 
 const (
 	RAX = "rax"
@@ -314,28 +314,24 @@ func (g *Generator) genLbl() string {
 
 func (g *Generator) getOffset(fn *parser.FuncDefNode, node interface{}) int {
 	var name string
-	var ty types.Type
 
 	switch node := node.(type) {
 	case *parser.LocalVariable:
 		name = node.Name
-		ty = node.Type
 	case *parser.IdentExp:
 		name = node.Name
-		ty = node.Type()
 	default:
 		fmt.Fprintf(os.Stderr, "Invalid node: %T\n", node)
 		os.Exit(1)
 	}
 
 	offset, ok := fn.Offsets[name]
-	//fmt.Fprintf(os.Stderr, "name=%s, offset=%d\n", name, offset)
 	if !ok {
 		fmt.Fprintf(os.Stderr, "Invalid ident name: %s\n", name)
 		os.Exit(1)
 	}
 
-	return fn.StackSize - offset + ty.StackSize()
+	return fn.StackSize - offset + 8
 }
 
 func reduceSizeof(unary *parser.UnaryExp) int {
