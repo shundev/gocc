@@ -1,6 +1,9 @@
 package types
 
-import "fmt"
+import (
+	"bytes"
+	"fmt"
+)
 
 const (
 	INT         = "INT"
@@ -73,22 +76,10 @@ type Array struct {
 }
 
 func (t *Array) String() string {
-	base := t.Base
-	s := ""
-	loop := true
-	for loop {
-		switch ty := base.(type) {
-		case *Int:
-			s = "int" + s
-			loop = false
-		case *IntPointer:
-			s = "*" + s
-			base = ty.Base
-		}
-	}
-
-	s += fmt.Sprintf("[%d]", t.Length)
-	return s
+	var out bytes.Buffer
+	out.WriteString(t.Base.String())
+	out.WriteString(fmt.Sprintf("[%d]", t.Length))
+	return out.String()
 }
 
 func (t *Array) Size() int {

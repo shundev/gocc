@@ -570,7 +570,7 @@ func (p *Parser) Parse() *ProgramNode {
 }
 
 func (p *Parser) Error(token *token.Token, msg string, args ...interface{}) {
-	p.tzer.Error(token, msg, args)
+	p.tzer.Error(token, msg, args...)
 }
 
 func UnaryToInfix(unary *UnaryExp) *InfixExp {

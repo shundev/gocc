@@ -50,7 +50,7 @@ func (g *Generator) Gen() {
 }
 
 func (g *Generator) Error(token *token.Token, msg string, args ...interface{}) {
-	g.parser.Error(token, msg, args)
+	g.parser.Error(token, msg, args...)
 }
 
 // push corresponding address to the top of stack
@@ -154,8 +154,12 @@ func (g *Generator) walk(node parser.Node) {
 		}
 
 		for i, param := range ty.Params.Exps {
-			if fn.Args.LV.Locals[i].Type != param.Type() {
-				g.Error(param.Token(), "Param types do not match.")
+			arg := fn.Args.LV.Locals[i]
+			if arg.Type.String() != param.Type().String() {
+				g.Error(
+					param.Token(),
+					"Param types do not match for %s. Expected %s, but got %s.",
+					arg.Name, arg.Type.String(), param.Type().String())
 			}
 
 			g.walk(param)

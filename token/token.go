@@ -70,7 +70,7 @@ func New(code string) *Tokenizer {
 }
 
 func (t *Tokenizer) Error(token *Token, msg string, args ...interface{}) {
-	fmt.Println(token.Col)
+	fmt.Fprintf(os.Stderr, "%d: ", token.Col)
 	fmt.Fprintln(os.Stderr, string(t.code))
 	for i := 0; i < token.Col; i++ {
 		fmt.Printf(" ")
