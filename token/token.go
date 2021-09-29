@@ -18,6 +18,8 @@ const (
 	RPAREN     = ")"
 	LBRACE     = "{"
 	RBRACE     = "}"
+	LBRACKET   = "["
+	RBRACKET   = "]"
 	ASSIGN     = "="
 	EQ         = "=="
 	NEQ        = "!="
@@ -130,6 +132,12 @@ func (t *Tokenizer) Tokenize() *Token {
 			t.idx++
 		case '}':
 			cur = newToken(RBRACE, cur, 0, string(t.curCh()), t.idx)
+			t.idx++
+		case '[':
+			cur = newToken(LBRACKET, cur, 0, string(t.curCh()), t.idx)
+			t.idx++
+		case ']':
+			cur = newToken(RBRACKET, cur, 0, string(t.curCh()), t.idx)
 			t.idx++
 		case ',':
 			cur = newToken(COMMA, cur, 0, string(t.curCh()), t.idx)

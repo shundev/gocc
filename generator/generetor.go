@@ -414,14 +414,5 @@ func (g *Generator) getOffset(fn *parser.FuncDefNode, name string) int {
 }
 
 func reduceSizeof(unary *parser.UnaryExp) int {
-	switch unary.Right.Type().(type) {
-	case *types.Int:
-		return 4
-	case *types.IntPointer:
-		return 8
-	}
-
-	fmt.Fprintf(os.Stderr, "Invalid sizeof arg: %+v\n", unary.Right.Type())
-	os.Exit(1)
-	return 0
+	return unary.Right.Type().Size()
 }

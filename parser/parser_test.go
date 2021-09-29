@@ -11,6 +11,10 @@ func TestParseInfix(t *testing.T) {
 		want  string
 	}{
 		{
+			"int main() { int a[10]; return *a;}",
+			"int main () { int[10] a; return (*a); }",
+		},
+		{
 			"int main() { int a; return a;}",
 			"int main () { int a; return a; }",
 		},

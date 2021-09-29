@@ -6,6 +6,7 @@ import (
 	"go9cc/token"
 	"go9cc/types"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -692,7 +693,7 @@ func (p *Parser) declspec() types.Type {
 	return types.GetInt()
 }
 
-// declarator = "*"* ident
+// declarator = "*"* ident ("[" num "]")?
 func (p *Parser) declarator(ty types.Type) (types.Type, *token.Token) {
 	p.debug("declarator")
 	for p.cur.Kind == token.ASTERISK {
@@ -700,21 +701,28 @@ func (p *Parser) declarator(ty types.Type) (types.Type, *token.Token) {
 		p.nextTkn()
 	}
 
-	switch ty := ty.(type) {
-	case *types.Int:
-		tok := p.cur
-		p.nextTkn()
-		return ty, tok
-	case *types.IntPointer:
-		tok := p.cur
-		p.nextTkn()
-		return ty, tok
-	default:
-		fmt.Fprintf(os.Stderr, "Invalid type.")
-		os.Exit(1)
+	if p.cur.Kind != token.IDENT {
+		return ty, nil
 	}
 
-	return ty, nil
+	identTok := p.cur
+	p.nextTkn()
+
+	if p.cur.Kind == token.LBRACKET {
+		p.nextTkn() // [
+		p.expect(p.cur, token.NUM)
+		length, err := strconv.Atoi(p.cur.Str)
+		if err != nil {
+			p.tzer.Error(p.cur.Col, "a number is expected. got %s.", p.cur.Str)
+			os.Exit(1)
+		}
+		p.nextTkn()
+		ty = types.ArrayOf(ty, length)
+		p.expect(p.cur, token.RBRACKET)
+		p.nextTkn()
+	}
+
+	return ty, identTok
 }
 
 func (p *Parser) declarationStmt() *StmtListNode {
