@@ -35,7 +35,7 @@ type Generator struct {
 }
 
 func New(p *parser.Parser, out io.Writer) *Generator {
-	writer := writer.NewIntelWriter(out)
+	writer := writer.New(out, INTEL_SYNTAX)
 	gen := &Generator{parser: p, writer: writer, fns: map[string]*parser.FuncDefNode{}}
 	return gen
 }
@@ -59,11 +59,11 @@ func (g *Generator) address(fn *parser.FuncDefNode, node interface{}) {
 		}
 	case *parser.LocalVariable:
 		offset := g.getOffset(fn, ty)
-		g.writer.Lea(RAX, RBP, -offset)
+		g.writer.Lea(-offset, RBP, RAX)
 		return
 	case *parser.IdentExp:
 		offset := g.getOffset(fn, ty)
-		g.writer.Lea(RAX, RBP, -offset)
+		g.writer.Lea(-offset, RBP, RAX)
 		return
 	}
 
@@ -99,7 +99,7 @@ func (g *Generator) walk(node parser.Node) {
 		g.writer.Label(lblBegin)
 		if stmt.Cond != nil {
 			g.walk(stmt.Cond)
-			g.writer.Cmp(RAX, "0")
+			g.writer.Cmp("0", RAX)
 			g.writer.Je(lblEnd) // RAXが0(false)ならforの外にジャンプ
 		}
 		g.walk(stmt.Body)
@@ -114,7 +114,7 @@ func (g *Generator) walk(node parser.Node) {
 		lblEnd := g.genLbl()
 		g.writer.Label(lblBegin)
 		g.walk(stmt.Cond)
-		g.writer.Cmp(RAX, "0")
+		g.writer.Cmp("0", RAX)
 		g.writer.Je(lblEnd) // RAXが0(false)ならwhileの外にジャンプ
 		g.walk(stmt.Body)
 		g.writer.Jmp(lblBegin)
@@ -124,7 +124,7 @@ func (g *Generator) walk(node parser.Node) {
 		lblElse := g.genLbl()
 		lblEnd := g.genLbl()
 		g.walk(stmt.Cond)
-		g.writer.Cmp(RAX, "0")
+		g.writer.Cmp("0", RAX)
 		g.writer.Je(lblElse) // RAXが0(false)ならelseブロックにジャンプ
 		g.walk(stmt.IfBody)
 		g.writer.Jmp(lblEnd)
@@ -135,11 +135,11 @@ func (g *Generator) walk(node parser.Node) {
 		g.writer.Label(lblEnd)
 	case *parser.NumExp:
 		val := fmt.Sprintf("%d", ty.Val)
-		g.writer.Mov(RAX, val)
+		g.writer.Mov(val, RAX)
 	case *parser.IdentExp:
 		// 変数呼び出し
 		g.address(g.currentFn, ty)
-		g.writer.Mov(RAX, g.writer.Address(RAX))
+		g.writer.Mov(g.writer.Address(RAX), RAX)
 	case *parser.FuncCallExp:
 		// 関数呼び出し
 		// FIXME: 型チェック
@@ -148,10 +148,10 @@ func (g *Generator) walk(node parser.Node) {
 			if i >= len(FUNCCALLREGS) {
 				g.writer.Push(RAX)
 			} else {
-				g.writer.Mov(FUNCCALLREGS[i], RAX)
+				g.writer.Mov(RAX, FUNCCALLREGS[i])
 			}
 		}
-		g.writer.Mov(RAX, "0")
+		g.writer.Mov("0", RAX)
 		// FIXME: need align before call?
 		g.writer.Call(ty.Name)
 	case *parser.FuncDefNode:
@@ -171,11 +171,11 @@ func (g *Generator) walk(node parser.Node) {
 			offset := g.getOffset(fn, local)
 			if i >= len(FUNCCALLREGS) {
 				g.writer.Pop(RDI)
-				g.writer.Lea(RAX, RBP, -offset)
-				g.writer.Mov(g.writer.Address(RAX), RDI)
+				g.writer.Lea(-offset, RBP, RAX)
+				g.writer.Mov(RDI, g.writer.Address(RAX))
 			} else {
-				g.writer.Lea(RAX, RBP, -offset)
-				g.writer.Mov(g.writer.Address(RAX), FUNCCALLREGS[i])
+				g.writer.Lea(-offset, RBP, RAX)
+				g.writer.Mov(FUNCCALLREGS[i], g.writer.Address(RAX))
 			}
 		}
 
@@ -188,7 +188,7 @@ func (g *Generator) walk(node parser.Node) {
 			g.address(g.currentFn, ty.Right) // RAXに目標のアドレスが載る
 		case "*":
 			g.walk(ty.Right) // RAXに目標のアドレスが載る
-			g.writer.Mov(RAX, g.writer.Address(RAX))
+			g.writer.Mov(g.writer.Address(RAX), RAX)
 		case "+":
 			// do nothing ( +5 -> 5)
 		case "-":
@@ -196,7 +196,7 @@ func (g *Generator) walk(node parser.Node) {
 			g.writer.Neg(RAX)
 		case "sizeof":
 			size := reduceSizeof(ty)
-			g.writer.Mov(RAX, fmt.Sprintf("%d", size))
+			g.writer.Mov(fmt.Sprintf("%d", size), RAX)
 		}
 	case *parser.DeclarationStmt:
 		for _, local := range ty.LV.Locals {
@@ -205,7 +205,7 @@ func (g *Generator) walk(node parser.Node) {
 				g.writer.Push(RAX) // 直近2つのRAXが必要な場合は前のRAXをスタックに退避
 				g.walk(ty.Exp)
 				g.writer.Pop(RDI)
-				g.writer.Mov(g.writer.Address(RDI), RAX)
+				g.writer.Mov(RAX, g.writer.Address(RDI))
 			}
 		}
 		// 戻り値はRAXに入っている
@@ -216,7 +216,7 @@ func (g *Generator) walk(node parser.Node) {
 			g.writer.Push(RAX) // 直近2つのRAXが必要な場合は前のRAXをスタックに退避
 			g.walk(infix.Right)
 			g.writer.Pop(RDI)
-			g.writer.Mov(g.writer.Address(RDI), RAX)
+			g.writer.Mov(RAX, g.writer.Address(RDI))
 			return
 		}
 
@@ -235,40 +235,40 @@ func (g *Generator) walk(node parser.Node) {
 
 		switch infix.Op {
 		case "+":
-			g.writer.Add(RAX, RDI)
+			g.writer.Add(RDI, RAX)
 		case "-":
-			g.writer.Sub(RAX, RDI) // 右辺をRDIに入れているから
+			g.writer.Sub(RDI, RAX) // 右辺をRDIに入れているから
 		case "*":
-			g.writer.Mul(RAX, RDI)
+			g.writer.Mul(RDI, RAX)
 		case "/":
 			g.writer.Div(RDI)
 		case ">":
 			// swap RAX and RDI
 			g.writer.Push(RAX)
-			g.writer.Mov(RAX, RDI)
+			g.writer.Mov(RDI, RAX)
 			g.writer.Pop(RDI)
 			fallthrough
 		case "<":
-			g.writer.Cmp(RAX, RDI)
+			g.writer.Cmp(RDI, RAX)
 			g.writer.Setl(AL)
-			g.writer.Movzb(RAX, AL)
+			g.writer.Movzb(AL, RAX)
 		case ">=":
 			g.writer.Push(RAX)
-			g.writer.Mov(RAX, RDI)
+			g.writer.Mov(RDI, RAX)
 			g.writer.Pop(RDI)
 			fallthrough
 		case "<=":
-			g.writer.Cmp(RAX, RDI)
+			g.writer.Cmp(RDI, RAX)
 			g.writer.Setle(AL)
-			g.writer.Movzb(RAX, AL)
+			g.writer.Movzb(AL, RAX)
 		case "==":
-			g.writer.Cmp(RAX, RDI)
+			g.writer.Cmp(RDI, RAX)
 			g.writer.Sete(AL)
-			g.writer.Movzb(RAX, AL)
+			g.writer.Movzb(AL, RAX)
 		case "!=":
-			g.writer.Cmp(RAX, RDI)
+			g.writer.Cmp(RDI, RAX)
 			g.writer.Setne(AL)
-			g.writer.Movzb(RAX, AL)
+			g.writer.Movzb(AL, RAX)
 		}
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown node: %T, %s\n", node, node.String())
@@ -278,12 +278,12 @@ func (g *Generator) walk(node parser.Node) {
 
 func (g *Generator) prolog(stackSize int) {
 	g.writer.Push(RBP)
-	g.writer.Mov(RBP, RSP)
-	g.writer.Sub(RSP, fmt.Sprintf("%d", stackSize))
+	g.writer.Mov(RSP, RBP)
+	g.writer.Sub(fmt.Sprintf("%d", stackSize), RSP)
 }
 
 func (g *Generator) epilog() {
-	g.writer.Mov(RSP, RBP)
+	g.writer.Mov(RBP, RSP)
 	g.writer.Pop(RBP)
 	g.writer.Ret()
 }

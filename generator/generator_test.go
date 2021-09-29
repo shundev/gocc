@@ -8,23 +8,10 @@ import (
 )
 
 func TestGenerator(t *testing.T) {
-	want := `.intel_syntax noprefix
-.globl main
-main:
-  push rbp
-  mov rbp, rsp
-  sub rsp, 0
-.L.return.main:
-  mov rsp, rbp
-  pop rbp
-  ret
-`
 	tests := []struct {
 		input string
 		want  string
-	}{
-		{"int main() { }", want},
-	}
+	}{}
 
 	for i, tt := range tests {
 		out := bytes.NewBufferString("")

@@ -12,7 +12,7 @@ type Writer interface {
 	Sub(string, string)
 	Mul(string, string)
 	Div(string)
-	Lea(string, string, int)
+	Lea(int, string, string)
 	Push(string)
 	Pop(string)
 	Sete(string)
@@ -32,11 +32,10 @@ type Writer interface {
 }
 
 type Intel struct {
-	out    io.Writer
-	lblCnt int
+	out io.Writer
 }
 
-const header = `.intel_syntax noprefix
+const INTEL_HEADER = `.intel_syntax noprefix
 .globl main
 `
 
@@ -45,26 +44,26 @@ func NewIntelWriter(out io.Writer) *Intel {
 }
 
 func (g *Intel) Header() {
-	io.WriteString(g.out, header)
+	io.WriteString(g.out, INTEL_HEADER)
 }
 
-func (g *Intel) Mov(rad string, val string) {
-	s := fmt.Sprintf("  mov %s, %s\n", rad, val)
+func (g *Intel) Mov(rad1 string, rad2 string) {
+	s := fmt.Sprintf("  mov %s, %s\n", rad2, rad1)
 	io.WriteString(g.out, s)
 }
 
 func (g *Intel) Add(rad1, rad2 string) {
-	s := fmt.Sprintf("  add %s, %s\n", rad1, rad2)
+	s := fmt.Sprintf("  add %s, %s\n", rad2, rad1)
 	io.WriteString(g.out, s)
 }
 
 func (g *Intel) Sub(rad1, rad2 string) {
-	s := fmt.Sprintf("  sub %s, %s\n", rad1, rad2)
+	s := fmt.Sprintf("  sub %s, %s\n", rad2, rad1)
 	io.WriteString(g.out, s)
 }
 
 func (g *Intel) Mul(rad1, rad2 string) {
-	s := fmt.Sprintf("  imul %s, %s\n", rad1, rad2)
+	s := fmt.Sprintf("  imul %s, %s\n", rad2, rad1)
 	io.WriteString(g.out, s)
 }
 
@@ -125,17 +124,17 @@ func (g *Intel) Call(label string) {
 }
 
 func (g *Intel) Cmp(rad1, rad2 string) {
-	s := fmt.Sprintf("  cmp %s, %s\n", rad1, rad2)
+	s := fmt.Sprintf("  cmp %s, %s\n", rad2, rad1)
 	io.WriteString(g.out, s)
 }
 
 func (g *Intel) Movzb(rad1, rad2 string) {
-	s := fmt.Sprintf("  movzb %s, %s\n", rad1, rad2)
+	s := fmt.Sprintf("  movzb %s, %s\n", rad2, rad1)
 	io.WriteString(g.out, s)
 }
 
-func (g *Intel) Lea(rad1, rad2 string, offset int) {
-	s := fmt.Sprintf("  lea %s, [%s%d]\n", rad1, rad2, offset)
+func (g *Intel) Lea(offset int, rad1, rad2 string) {
+	s := fmt.Sprintf("  lea %s, [%s%d]\n", rad2, rad1, offset)
 	io.WriteString(g.out, s)
 }
 
