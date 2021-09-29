@@ -3,6 +3,7 @@ package generator
 import (
 	"fmt"
 	"go9cc/parser"
+	"go9cc/token"
 	"go9cc/types"
 	"go9cc/writer"
 	"io"
@@ -46,6 +47,10 @@ func (g *Generator) Gen() {
 	node := g.parser.Parse()
 
 	g.walk(node)
+}
+
+func (g *Generator) Error(token *token.Token, msg string, args ...interface{}) {
+	g.parser.Error(token, msg, args)
 }
 
 // push corresponding address to the top of stack
@@ -143,7 +148,16 @@ func (g *Generator) walk(node parser.Node) {
 	case *parser.FuncCallExp:
 		// 関数呼び出し
 		// FIXME: 型チェック
+		fn, ok := g.fns[ty.Name]
+		if !ok {
+			g.Error(ty.Token(), "Function definition not found.")
+		}
+
 		for i, param := range ty.Params.Exps {
+			if fn.Args.LV.Locals[i].Type != param.Type() {
+				g.Error(param.Token(), "Param types do not match.")
+			}
+
 			g.walk(param)
 			if i >= len(FUNCCALLREGS) {
 				g.writer.Push(RAX)
@@ -162,8 +176,7 @@ func (g *Generator) walk(node parser.Node) {
 
 		fn, ok := g.fns[ty.Name]
 		if !ok {
-			fmt.Fprintf(os.Stderr, "Function %s not found.\n", ty.Name)
-			os.Exit(1)
+			g.Error(ty.Token(), "Function %s not found.\n", ty.Name)
 		}
 
 		// Prepare params

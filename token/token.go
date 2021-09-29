@@ -61,18 +61,28 @@ func newToken(kind TokenKind, curToken *Token, val int, str string, col int) *To
 }
 
 type Tokenizer struct {
-	idx  int
+	col  int
 	code []rune
 }
 
 func New(code string) *Tokenizer {
-	return &Tokenizer{idx: 0, code: []rune(code)}
+	return &Tokenizer{col: 0, code: []rune(code)}
 }
 
-func (t *Tokenizer) Error(pos int, msg string, args ...interface{}) {
-	fmt.Println(pos)
+func (t *Tokenizer) Error(token *Token, msg string, args ...interface{}) {
+	fmt.Println(token.Col)
 	fmt.Fprintln(os.Stderr, string(t.code))
-	for i := 0; i < pos; i++ {
+	for i := 0; i < token.Col; i++ {
+		fmt.Printf(" ")
+	}
+	fmt.Fprintf(os.Stderr, "^ "+msg+"\n", args...)
+	os.Exit(1)
+}
+
+func (t *Tokenizer) errorCurrent(msg string, args ...interface{}) {
+	fmt.Println(t.col)
+	fmt.Fprintln(os.Stderr, string(t.code))
+	for i := 0; i < t.col; i++ {
 		fmt.Printf(" ")
 	}
 	fmt.Fprintf(os.Stderr, "^ "+msg+"\n", args...)
@@ -88,21 +98,21 @@ func (t *Tokenizer) Expect(token *Token, kinds ...TokenKind) {
 	}
 
 	if !match {
-		t.Error(token.Col, "Expected %s. Got %s.", strings.Join(ss, " or "), token.Kind)
+		t.Error(token, "Expected %s. Got %s.", strings.Join(ss, " or "), token.Kind)
 		os.Exit(1)
 	}
 }
 
 func (t *Tokenizer) curCh() rune {
-	if t.idx >= len(t.code) {
+	if t.col >= len(t.code) {
 		return 0
 	}
 
-	return t.code[t.idx]
+	return t.code[t.col]
 }
 
 func (t *Tokenizer) Tokenize() *Token {
-	t.idx = skip(t.code, 0)
+	t.col = skip(t.code, 0)
 
 	head := &Token{START, nil, 0, "", 0}
 	cur := head
@@ -110,129 +120,129 @@ func (t *Tokenizer) Tokenize() *Token {
 	for {
 		switch t.curCh() {
 		case '+':
-			cur = newToken(PLUS, cur, 0, string(t.curCh()), t.idx)
-			t.idx++
+			cur = newToken(PLUS, cur, 0, string(t.curCh()), t.col)
+			t.col++
 		case '-':
-			cur = newToken(MINUS, cur, 0, string(t.curCh()), t.idx)
-			t.idx++
+			cur = newToken(MINUS, cur, 0, string(t.curCh()), t.col)
+			t.col++
 		case '*':
-			cur = newToken(ASTERISK, cur, 0, string(t.curCh()), t.idx)
-			t.idx++
+			cur = newToken(ASTERISK, cur, 0, string(t.curCh()), t.col)
+			t.col++
 		case '/':
-			cur = newToken(SLASH, cur, 0, string(t.curCh()), t.idx)
-			t.idx++
+			cur = newToken(SLASH, cur, 0, string(t.curCh()), t.col)
+			t.col++
 		case '(':
-			cur = newToken(LPAREN, cur, 0, string(t.curCh()), t.idx)
-			t.idx++
+			cur = newToken(LPAREN, cur, 0, string(t.curCh()), t.col)
+			t.col++
 		case ')':
-			cur = newToken(RPAREN, cur, 0, string(t.curCh()), t.idx)
-			t.idx++
+			cur = newToken(RPAREN, cur, 0, string(t.curCh()), t.col)
+			t.col++
 		case '{':
-			cur = newToken(LBRACE, cur, 0, string(t.curCh()), t.idx)
-			t.idx++
+			cur = newToken(LBRACE, cur, 0, string(t.curCh()), t.col)
+			t.col++
 		case '}':
-			cur = newToken(RBRACE, cur, 0, string(t.curCh()), t.idx)
-			t.idx++
+			cur = newToken(RBRACE, cur, 0, string(t.curCh()), t.col)
+			t.col++
 		case '[':
-			cur = newToken(LBRACKET, cur, 0, string(t.curCh()), t.idx)
-			t.idx++
+			cur = newToken(LBRACKET, cur, 0, string(t.curCh()), t.col)
+			t.col++
 		case ']':
-			cur = newToken(RBRACKET, cur, 0, string(t.curCh()), t.idx)
-			t.idx++
+			cur = newToken(RBRACKET, cur, 0, string(t.curCh()), t.col)
+			t.col++
 		case ',':
-			cur = newToken(COMMA, cur, 0, string(t.curCh()), t.idx)
-			t.idx++
+			cur = newToken(COMMA, cur, 0, string(t.curCh()), t.col)
+			t.col++
 		case '<':
-			t.idx++
+			t.col++
 			if t.curCh() == '=' {
-				t.idx--
-				cur = newToken(LTE, cur, 0, "<=", t.idx)
-				t.idx += 2
+				t.col--
+				cur = newToken(LTE, cur, 0, "<=", t.col)
+				t.col += 2
 			} else {
-				t.idx--
-				cur = newToken(LT, cur, 0, string(t.curCh()), t.idx)
-				t.idx++
+				t.col--
+				cur = newToken(LT, cur, 0, string(t.curCh()), t.col)
+				t.col++
 			}
 		case '>':
-			t.idx++
+			t.col++
 			if t.curCh() == '=' {
-				t.idx--
-				cur = newToken(GTE, cur, 0, ">=", t.idx)
-				t.idx += 2
+				t.col--
+				cur = newToken(GTE, cur, 0, ">=", t.col)
+				t.col += 2
 			} else {
-				t.idx--
-				cur = newToken(GT, cur, 0, string(t.curCh()), t.idx)
-				t.idx++
+				t.col--
+				cur = newToken(GT, cur, 0, string(t.curCh()), t.col)
+				t.col++
 			}
 		case '=':
-			t.idx++
+			t.col++
 			if t.curCh() == '=' {
-				t.idx--
-				cur = newToken(EQ, cur, 0, "==", t.idx)
-				t.idx += 2
+				t.col--
+				cur = newToken(EQ, cur, 0, "==", t.col)
+				t.col += 2
 			} else {
-				t.idx--
-				cur = newToken(ASSIGN, cur, 0, "=", t.idx)
-				t.idx++
+				t.col--
+				cur = newToken(ASSIGN, cur, 0, "=", t.col)
+				t.col++
 			}
 		case '!':
-			t.idx++
+			t.col++
 			if t.curCh() != '=' {
-				t.Error(t.idx, "Unexpected char: %s", string(t.curCh()))
+				t.errorCurrent("Unexpected char: %s", string(t.curCh()))
 			}
-			t.idx--
-			cur = newToken(NEQ, cur, 0, "!=", t.idx)
-			t.idx += 2
+			t.col--
+			cur = newToken(NEQ, cur, 0, "!=", t.col)
+			t.col += 2
 		case ';':
-			cur = newToken(SEMICOLLON, cur, 0, ";", t.idx)
-			t.idx++
+			cur = newToken(SEMICOLLON, cur, 0, ";", t.col)
+			t.col++
 		case '&':
-			cur = newToken(AND, cur, 0, "&", t.idx)
-			t.idx++
+			cur = newToken(AND, cur, 0, "&", t.col)
+			t.col++
 		case 0:
-			cur = newToken(EOF, cur, 0, "", t.idx)
+			cur = newToken(EOF, cur, 0, "", t.col)
 			return head.Next
 		default:
-			if newIdx, ok := tryKeyword(t.code, t.idx, "sizeof"); ok {
-				cur = newToken(SIZEOF, cur, 0, "sizeof", t.idx)
-				t.idx = newIdx
-			} else if newIdx, ok := tryKeyword(t.code, t.idx, "int"); ok {
-				cur = newToken(TYPE, cur, 0, "int", t.idx)
-				t.idx = newIdx
-			} else if newIdx, ok := tryKeyword(t.code, t.idx, "return"); ok {
-				cur = newToken(RETURN, cur, 0, "return", t.idx)
-				t.idx = newIdx
-			} else if newIdx, ok := tryKeyword(t.code, t.idx, "if"); ok {
-				cur = newToken(IF, cur, 0, "if", t.idx)
-				t.idx = newIdx
-			} else if newIdx, ok := tryKeyword(t.code, t.idx, "else"); ok {
-				cur = newToken(ELSE, cur, 0, "else", t.idx)
-				t.idx = newIdx
-			} else if newIdx, ok := tryKeyword(t.code, t.idx, "for"); ok {
-				cur = newToken(FOR, cur, 0, "for", t.idx)
-				t.idx = newIdx
-			} else if newIdx, ok := tryKeyword(t.code, t.idx, "while"); ok {
-				cur = newToken(WHILE, cur, 0, "while", t.idx)
-				t.idx = newIdx
-			} else if newIdx, ok := tryKeyword(t.code, t.idx, "do"); ok {
-				cur = newToken(DO, cur, 0, "do", t.idx)
-				t.idx = newIdx
+			if newcol, ok := tryKeyword(t.code, t.col, "sizeof"); ok {
+				cur = newToken(SIZEOF, cur, 0, "sizeof", t.col)
+				t.col = newcol
+			} else if newcol, ok := tryKeyword(t.code, t.col, "int"); ok {
+				cur = newToken(TYPE, cur, 0, "int", t.col)
+				t.col = newcol
+			} else if newcol, ok := tryKeyword(t.code, t.col, "return"); ok {
+				cur = newToken(RETURN, cur, 0, "return", t.col)
+				t.col = newcol
+			} else if newcol, ok := tryKeyword(t.code, t.col, "if"); ok {
+				cur = newToken(IF, cur, 0, "if", t.col)
+				t.col = newcol
+			} else if newcol, ok := tryKeyword(t.code, t.col, "else"); ok {
+				cur = newToken(ELSE, cur, 0, "else", t.col)
+				t.col = newcol
+			} else if newcol, ok := tryKeyword(t.code, t.col, "for"); ok {
+				cur = newToken(FOR, cur, 0, "for", t.col)
+				t.col = newcol
+			} else if newcol, ok := tryKeyword(t.code, t.col, "while"); ok {
+				cur = newToken(WHILE, cur, 0, "while", t.col)
+				t.col = newcol
+			} else if newcol, ok := tryKeyword(t.code, t.col, "do"); ok {
+				cur = newToken(DO, cur, 0, "do", t.col)
+				t.col = newcol
 			} else if isDigit(t.curCh()) {
-				intVal, newIdx := readInteger(t.code, t.idx)
-				cur = newToken(NUM, cur, intVal, fmt.Sprintf("%d", intVal), t.idx)
-				t.idx = newIdx
+				intVal, newcol := readInteger(t.code, t.col)
+				cur = newToken(NUM, cur, intVal, fmt.Sprintf("%d", intVal), t.col)
+				t.col = newcol
 			} else if isIdent(t.curCh()) {
-				strVal, newIdx := readIdent(t.code, t.idx)
-				cur = newToken(IDENT, cur, 0, strVal, t.idx)
-				t.idx = newIdx
+				strVal, newcol := readIdent(t.code, t.col)
+				cur = newToken(IDENT, cur, 0, strVal, t.col)
+				t.col = newcol
 			} else {
-				t.idx = skip(t.code, t.idx)
-				t.Error(t.idx, "Unexpected char: %s", string(t.curCh()))
+				t.col = skip(t.code, t.col)
+				t.errorCurrent("Unexpected char: %s", string(t.curCh()))
 				os.Exit(1)
 			}
 		}
 
-		t.idx = skip(t.code, t.idx)
+		t.col = skip(t.code, t.col)
 	}
 }
 
@@ -282,14 +292,14 @@ func isIdent(ch rune) bool {
 }
 
 func readIdent(s []rune, start int) (string, int) {
-	idx := start
+	col := start
 	var out bytes.Buffer
-	for idx < len(s) && (isIdent(s[idx]) || isDigit(s[idx])) {
-		out.WriteRune(s[idx])
-		idx++
+	for col < len(s) && (isIdent(s[col]) || isDigit(s[col])) {
+		out.WriteRune(s[col])
+		col++
 	}
 
-	return out.String(), idx
+	return out.String(), col
 }
 
 func tryKeyword(s []rune, start int, keyword string) (int, bool) {

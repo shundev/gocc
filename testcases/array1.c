@@ -1,7 +1,7 @@
 int main() {
-  int x,y[4],z;
-  x = 1;
-  *y = 2;
-  z = 3;
+  int x,y,*z;
+  x = 10;
+  y = 20;
+  *z = 30;
   return 0;
 }

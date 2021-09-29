@@ -24,7 +24,7 @@ func (n *LocalVariable) String() string {
 
 type Node interface {
 	String() string
-	TokenLiteral() string
+	Token() *token.Token
 }
 
 type Stmt interface {
@@ -46,12 +46,12 @@ type StmtListNode struct {
 
 func (n *StmtListNode) stmtNode() {}
 
-func (n *StmtListNode) TokenLiteral() string {
+func (n *StmtListNode) Token() *token.Token {
 	if len(n.Stmts) == 0 {
-		return ""
+		return nil
 	}
 
-	return n.Stmts[0].TokenLiteral()
+	return n.Stmts[0].Token()
 }
 
 func (n *StmtListNode) String() string {
@@ -76,8 +76,8 @@ type LocalVariableNode struct {
 	token  *token.Token
 }
 
-func (n *LocalVariableNode) TokenLiteral() string {
-	return n.token.Str
+func (n *LocalVariableNode) Token() *token.Token {
+	return n.token
 }
 
 func (n *LocalVariableNode) String() string {
@@ -118,8 +118,8 @@ type NumExp struct {
 
 func (n *NumExp) expNode() {}
 
-func (n *NumExp) TokenLiteral() string {
-	return n.token.Str
+func (n *NumExp) Token() *token.Token {
+	return n.token
 }
 
 func (n *NumExp) String() string {
@@ -140,8 +140,8 @@ type InfixExp struct {
 
 func (n *InfixExp) expNode() {}
 
-func (n *InfixExp) TokenLiteral() string {
-	return n.token.Str
+func (n *InfixExp) Token() *token.Token {
+	return n.token
 }
 
 func (n *InfixExp) String() string {
@@ -169,8 +169,8 @@ type DeclarationStmt struct {
 
 func (n *DeclarationStmt) stmtNode() {}
 
-func (n *DeclarationStmt) TokenLiteral() string {
-	return n.token.Str
+func (n *DeclarationStmt) Token() *token.Token {
+	return n.token
 }
 
 func (n *DeclarationStmt) String() string {
@@ -194,8 +194,8 @@ type UnaryExp struct {
 
 func (n *UnaryExp) expNode() {}
 
-func (n *UnaryExp) TokenLiteral() string {
-	return n.token.Str
+func (n *UnaryExp) Token() *token.Token {
+	return n.token
 }
 
 func (n *UnaryExp) String() string {
@@ -236,8 +236,8 @@ type IdentExp struct {
 
 func (n *IdentExp) expNode() {}
 
-func (n *IdentExp) TokenLiteral() string {
-	return n.token.Str
+func (n *IdentExp) Token() *token.Token {
+	return n.token
 }
 
 func (n *IdentExp) String() string {
@@ -254,12 +254,12 @@ type FuncCallParams struct {
 	Exps []Exp
 }
 
-func (n *FuncCallParams) TokenLiteral() string {
+func (n *FuncCallParams) Token() *token.Token {
 	if len(n.Exps) == 0 {
-		return ""
+		return nil
 	}
 
-	return n.Exps[0].TokenLiteral()
+	return n.Exps[0].Token()
 }
 
 func (n *FuncCallParams) String() string {
@@ -285,8 +285,8 @@ type FuncCallExp struct {
 
 func (n *FuncCallExp) expNode() {}
 
-func (n *FuncCallExp) TokenLiteral() string {
-	return n.token.Str
+func (n *FuncCallExp) Token() *token.Token {
+	return n.token
 }
 
 func (n *FuncCallExp) Type() types.Type {
@@ -309,8 +309,8 @@ type ExpStmt struct {
 
 func (n *ExpStmt) stmtNode() {}
 
-func (n *ExpStmt) TokenLiteral() string {
-	return n.token.Str
+func (n *ExpStmt) Token() *token.Token {
+	return n.token
 }
 
 func (n *ExpStmt) String() string {
@@ -329,8 +329,8 @@ type ReturnStmt struct {
 
 func (n *ReturnStmt) stmtNode() {}
 
-func (n *ReturnStmt) TokenLiteral() string {
-	return n.token.Str
+func (n *ReturnStmt) Token() *token.Token {
+	return n.token
 }
 
 func (n *ReturnStmt) String() string {
@@ -352,8 +352,8 @@ type IfStmt struct {
 
 func (n *IfStmt) stmtNode() {}
 
-func (n *IfStmt) TokenLiteral() string {
-	return n.token.Str
+func (n *IfStmt) Token() *token.Token {
+	return n.token
 }
 
 func (n *IfStmt) String() string {
@@ -379,8 +379,8 @@ type WhileStmt struct {
 
 func (n *WhileStmt) stmtNode() {}
 
-func (n *WhileStmt) TokenLiteral() string {
-	return n.token.Str
+func (n *WhileStmt) Token() *token.Token {
+	return n.token
 }
 
 func (n *WhileStmt) String() string {
@@ -403,8 +403,8 @@ type ForStmt struct {
 
 func (n *ForStmt) stmtNode() {}
 
-func (n *ForStmt) TokenLiteral() string {
-	return n.token.Str
+func (n *ForStmt) Token() *token.Token {
+	return n.token
 }
 
 func (n *ForStmt) String() string {
@@ -435,8 +435,8 @@ type BlockStmt struct {
 
 func (n *BlockStmt) stmtNode() {}
 
-func (n *BlockStmt) TokenLiteral() string {
-	return n.token.Str
+func (n *BlockStmt) Token() *token.Token {
+	return n.token
 }
 
 func (n *BlockStmt) String() string {
@@ -453,12 +453,12 @@ type ProgramNode struct {
 	FuncDefs []*FuncDefNode
 }
 
-func (n *ProgramNode) TokenLiteral() string {
+func (n *ProgramNode) Token() *token.Token {
 	if len(n.FuncDefs) > 0 {
-		return n.FuncDefs[0].TokenLiteral()
+		return n.FuncDefs[0].Token()
 	}
 
-	return ""
+	return nil
 }
 
 func (n *ProgramNode) String() string {
@@ -482,8 +482,8 @@ type FuncDefNode struct {
 	token     *token.Token
 }
 
-func (n *FuncDefNode) TokenLiteral() string {
-	return n.token.Str
+func (n *FuncDefNode) Token() *token.Token {
+	return n.token
 }
 
 func (n *FuncDefNode) String() string {
@@ -569,6 +569,10 @@ func (p *Parser) Parse() *ProgramNode {
 	return node
 }
 
+func (p *Parser) Error(token *token.Token, msg string, args ...interface{}) {
+	p.tzer.Error(token, msg, args)
+}
+
 func UnaryToInfix(unary *UnaryExp) *InfixExp {
 	right := unary.Right
 	left := &NumExp{Val: 0}
@@ -643,7 +647,7 @@ func (p *Parser) funcdefargs() *FuncDefArgs {
 
 	for _, local := range args.LV.Locals {
 		if _, exists := p.curFn.Offsets[local.Name]; exists {
-			p.tzer.Error(p.cur.Col, "Declared already: %s", p.cur.Str)
+			p.Error(p.cur, "Declared already: %s", p.cur.Str)
 		}
 
 		p.curFn.offsetCnt += local.Type.StackSize()
@@ -713,7 +717,7 @@ func (p *Parser) declarator(ty types.Type) (types.Type, *token.Token) {
 		p.expect(p.cur, token.NUM)
 		length, err := strconv.Atoi(p.cur.Str)
 		if err != nil || length <= 0 {
-			p.tzer.Error(p.cur.Col, "a positive number is expected. got %s.", p.cur.Str)
+			p.tzer.Error(p.cur, "a positive number is expected. got %s.", p.cur.Str)
 			os.Exit(1)
 		}
 		p.nextTkn()
@@ -752,7 +756,7 @@ func (p *Parser) declarationStmt() *StmtListNode {
 
 		for _, local := range locals {
 			if _, exists := p.curFn.Offsets[local.Name]; exists {
-				p.tzer.Error(p.cur.Col, "Declared already: %s", p.cur.Str)
+				p.tzer.Error(p.cur, "Declared already: %s", p.cur.Str)
 			}
 
 			p.curFn.offsetCnt += local.Type.StackSize()
@@ -770,7 +774,7 @@ func (p *Parser) declarationStmt() *StmtListNode {
 	if len(locals) > 0 {
 		for _, local := range locals {
 			if _, exists := p.curFn.Offsets[local.Name]; exists {
-				p.tzer.Error(p.cur.Col, "Declared already: %s", p.cur.Str)
+				p.tzer.Error(p.cur, "Declared already: %s", p.cur.Str)
 			}
 
 			p.curFn.offsetCnt += local.Type.StackSize()
@@ -918,7 +922,7 @@ func (p *Parser) assign() Exp {
 		// TODO: duplicate left value check
 		if ident, ok := infix.Left.(*IdentExp); ok {
 			if _, exists := p.curFn.Offsets[ident.Name]; !exists {
-				p.tzer.Error(ident.token.Col, "Variable not found.")
+				p.tzer.Error(ident.token, "Variable not found.")
 			}
 		}
 	}
@@ -982,7 +986,7 @@ func (p *Parser) add() Exp {
 			node = infix
 		default:
 			// never go here
-			p.tzer.Error(p.cur.Col, "Invalid token: %s", p.cur.Str)
+			p.tzer.Error(p.cur, "Invalid token: %s", p.cur.Str)
 		}
 	}
 
@@ -1006,7 +1010,7 @@ func (p *Parser) mul() Exp {
 			node = infix
 		default:
 			// never go here
-			p.tzer.Error(p.cur.Col, "Invalid token: %s", p.cur.Str)
+			p.tzer.Error(p.cur, "Invalid token: %s", p.cur.Str)
 		}
 	}
 
@@ -1061,7 +1065,7 @@ func (p *Parser) primary() Exp {
 	case token.MINUS:
 		return p.unary()
 	default:
-		p.tzer.Error(p.cur.Col, "Invalid token as primary: %s", p.cur.Str)
+		p.tzer.Error(p.cur, "Invalid token as primary: %s", p.cur.Str)
 		return nil
 	}
 }
