@@ -113,3 +113,35 @@ func testToken(t *testing.T, token *Token, kind TokenKind, val int, str string, 
 	}
 
 }
+
+func TestGetLine(t *testing.T) {
+	tests := []struct {
+		code  string
+		idx   int
+		wants string
+		wantr int
+		wantc int
+	}{
+		{"aaa\nbbb\nccc", 0, "aaa", 0, 0},
+		{"aaa\nbbb\nccc", 1, "aaa", 0, 1},
+		{"aaa\nbbb\nccc", 4, "bbb", 1, 0},
+		{"aaa\nbbb\nccc", 6, "bbb", 1, 2},
+		{"aaa\nbbb\nccc", 8, "ccc", 2, 0},
+		{"aaa\nbbb\nccc", 10, "ccc", 2, 2},
+	}
+
+	for i, tt := range tests {
+		line, row, col := getLine([]rune(tt.code), tt.idx)
+		if line != tt.wants {
+			t.Errorf("Case%d line: got=%s, want=%s\n", i, line, tt.wants)
+		}
+
+		if row != tt.wantr {
+			t.Errorf("Case%d  row: got=%d, want=%d\n", i, row, tt.wantr)
+		}
+
+		if col != tt.wantc {
+			t.Errorf("Case%d col: got=%d, want=%d\n", i, col, tt.wantc)
+		}
+	}
+}

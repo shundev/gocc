@@ -47,6 +47,7 @@ func (g *Generator) Gen() {
 	node := g.parser.Parse()
 
 	g.walk(node)
+	g.writer.Commit()
 }
 
 func (g *Generator) Error(token *token.Token, msg string, args ...interface{}) {

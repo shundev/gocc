@@ -2,8 +2,14 @@
 assert() {
   expected="$1"
   input="$2"
+  err="./logs/build.log"
 
-  timeout 3 ./main "testcases/$input" 1> tmp.s 2>>./logs/build.log
+  timeout 3 ./main "testcases/$input" 1> tmp.s 2>>$err
+  if [[ "$?" != "0" ]]; then
+    echo "Error while compiling. Check out $err."
+    exit 1
+  fi
+
   cc -o tmp tmp.s
   ./tmp
   actual="$?"

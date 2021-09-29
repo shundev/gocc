@@ -70,11 +70,11 @@ func New(code string) *Tokenizer {
 }
 
 func (t *Tokenizer) Error(token *Token, msg string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, "%d: ", token.Col)
-	fmt.Fprintln(os.Stderr, string(t.code))
-	for i := 0; i < token.Col; i++ {
-		fmt.Printf(" ")
-	}
+	line, row, col := getLine(t.code, token.Col)
+	prefix := fmt.Sprintf("line %d: ", row+1)
+	fmt.Fprintf(os.Stderr, prefix)
+	fmt.Fprintln(os.Stderr, line)
+	fmt.Fprintf(os.Stderr, strings.Repeat(" ", len(prefix)+col))
 	fmt.Fprintf(os.Stderr, "^ "+msg+"\n", args...)
 	os.Exit(1)
 }
@@ -353,4 +353,27 @@ func equal(a, b []rune) bool {
 		}
 	}
 	return true
+}
+
+func getLine(code []rune, idx int) (string, int, int) {
+	start := idx
+	end := idx
+
+	for start-1 >= 0 && code[start-1] != '\n' {
+		start--
+	}
+
+	for end+1 <= len(code)-1 && code[end+1] != '\n' {
+		end++
+	}
+
+	row := 0
+	for i := 0; i <= start; i++ {
+		if code[i] == '\n' {
+			row++
+		}
+	}
+
+	line := string(code[start : end+1])
+	return line, row, idx - start
 }
