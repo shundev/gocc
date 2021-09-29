@@ -4,13 +4,12 @@ import (
 	"fmt"
 	"go9cc/parser"
 	"go9cc/types"
+	"go9cc/writer"
 	"io"
 	"os"
 )
 
-const HEADER = `.intel_syntax noprefix
-.globl main
-`
+const INTEL_SYNTAX = false
 
 const (
 	RAX = "rax"
@@ -29,19 +28,20 @@ var FUNCCALLREGS = []string{RDI, RSI, RDX, RCX, R8D, R9D}
 
 type Generator struct {
 	parser    *parser.Parser
-	out       io.Writer
+	writer    writer.Writer
 	lblCnt    int
 	currentFn *parser.FuncDefNode
 	fns       map[string]*parser.FuncDefNode
 }
 
 func New(p *parser.Parser, out io.Writer) *Generator {
-	gen := &Generator{parser: p, out: out, fns: map[string]*parser.FuncDefNode{}}
+	writer := writer.NewIntelWriter(out)
+	gen := &Generator{parser: p, writer: writer, fns: map[string]*parser.FuncDefNode{}}
 	return gen
 }
 
 func (g *Generator) Gen() {
-	g.header()
+	g.writer.Header()
 
 	node := g.parser.Parse()
 
@@ -58,12 +58,12 @@ func (g *Generator) address(fn *parser.FuncDefNode, node interface{}) {
 			return
 		}
 	case *parser.LocalVariable:
-		offset := g.getOffset(fn, ty.Name)
-		g.lea(RAX, RBP, -offset)
+		offset := g.getOffset(fn, ty)
+		g.writer.Lea(RAX, RBP, -offset)
 		return
 	case *parser.IdentExp:
-		offset := g.getOffset(fn, ty.Name)
-		g.lea(RAX, RBP, -offset)
+		offset := g.getOffset(fn, ty)
+		g.writer.Lea(RAX, RBP, -offset)
 		return
 	}
 
@@ -82,7 +82,7 @@ func (g *Generator) walk(node parser.Node) {
 	case *parser.ReturnStmt:
 		g.walk(ty.Exp)
 		s := fmt.Sprintf(".L.return.%s", g.currentFn.Name)
-		g.jmp(s)
+		g.writer.Jmp(s)
 	case *parser.StmtListNode:
 		for _, stmt := range ty.Stmts {
 			g.walk(stmt)
@@ -96,68 +96,68 @@ func (g *Generator) walk(node parser.Node) {
 		if stmt.Init != nil {
 			g.walk(stmt.Init)
 		}
-		g.label(lblBegin)
+		g.writer.Label(lblBegin)
 		if stmt.Cond != nil {
 			g.walk(stmt.Cond)
-			g.cmp(RAX, "0")
-			g.je(lblEnd) // RAXが0(false)ならforの外にジャンプ
+			g.writer.Cmp(RAX, "0")
+			g.writer.Je(lblEnd) // RAXが0(false)ならforの外にジャンプ
 		}
 		g.walk(stmt.Body)
 		if stmt.AfterEach != nil {
 			g.walk(stmt.AfterEach)
 		}
-		g.jmp(lblBegin)
-		g.label(lblEnd)
+		g.writer.Jmp(lblBegin)
+		g.writer.Label(lblEnd)
 	case *parser.WhileStmt:
 		stmt, _ := node.(*parser.WhileStmt)
 		lblBegin := g.genLbl()
 		lblEnd := g.genLbl()
-		g.label(lblBegin)
+		g.writer.Label(lblBegin)
 		g.walk(stmt.Cond)
-		g.cmp(RAX, "0")
-		g.je(lblEnd) // RAXが0(false)ならwhileの外にジャンプ
+		g.writer.Cmp(RAX, "0")
+		g.writer.Je(lblEnd) // RAXが0(false)ならwhileの外にジャンプ
 		g.walk(stmt.Body)
-		g.jmp(lblBegin)
-		g.label(lblEnd)
+		g.writer.Jmp(lblBegin)
+		g.writer.Label(lblEnd)
 	case *parser.IfStmt:
 		stmt, _ := node.(*parser.IfStmt)
 		lblElse := g.genLbl()
 		lblEnd := g.genLbl()
 		g.walk(stmt.Cond)
-		g.cmp(RAX, "0")
-		g.je(lblElse) // RAXが0(false)ならelseブロックにジャンプ
+		g.writer.Cmp(RAX, "0")
+		g.writer.Je(lblElse) // RAXが0(false)ならelseブロックにジャンプ
 		g.walk(stmt.IfBody)
-		g.jmp(lblEnd)
-		g.label(lblElse)
+		g.writer.Jmp(lblEnd)
+		g.writer.Label(lblElse)
 		if stmt.ElseBody != nil {
 			g.walk(stmt.ElseBody)
 		}
-		g.label(lblEnd)
+		g.writer.Label(lblEnd)
 	case *parser.NumExp:
 		val := fmt.Sprintf("%d", ty.Val)
-		g.mov(RAX, val)
+		g.writer.Mov(RAX, val)
 	case *parser.IdentExp:
 		// 変数呼び出し
 		g.address(g.currentFn, ty)
-		g.mov(RAX, "["+RAX+"]")
+		g.writer.Mov(RAX, g.writer.Address(RAX))
 	case *parser.FuncCallExp:
 		// 関数呼び出し
 		// FIXME: 型チェック
 		for i, param := range ty.Params.Exps {
 			g.walk(param)
 			if i >= len(FUNCCALLREGS) {
-				g.push(RAX)
+				g.writer.Push(RAX)
 			} else {
-				g.mov(FUNCCALLREGS[i], RAX)
+				g.writer.Mov(FUNCCALLREGS[i], RAX)
 			}
 		}
-		g.mov(RAX, "0")
+		g.writer.Mov(RAX, "0")
 		// FIXME: need align before call?
-		g.call(ty.Name)
+		g.writer.Call(ty.Name)
 	case *parser.FuncDefNode:
 		g.fns[ty.Name] = ty
 		g.currentFn = ty
-		g.label(ty.Name)
+		g.writer.Label(ty.Name)
 		g.prolog(ty.StackSize)
 
 		fn, ok := g.fns[ty.Name]
@@ -168,19 +168,19 @@ func (g *Generator) walk(node parser.Node) {
 
 		// Prepare params
 		for i, local := range ty.Args.LV.Locals {
-			offset := g.getOffset(fn, local.Name)
+			offset := g.getOffset(fn, local)
 			if i >= len(FUNCCALLREGS) {
-				g.pop(RDI)
-				g.lea(RAX, RBP, -offset)
-				g.mov("["+RAX+"]", RDI)
+				g.writer.Pop(RDI)
+				g.writer.Lea(RAX, RBP, -offset)
+				g.writer.Mov(g.writer.Address(RAX), RDI)
 			} else {
-				g.lea(RAX, RBP, -offset)
-				g.mov("["+RAX+"]", FUNCCALLREGS[i])
+				g.writer.Lea(RAX, RBP, -offset)
+				g.writer.Mov(g.writer.Address(RAX), FUNCCALLREGS[i])
 			}
 		}
 
 		g.walk(ty.Body)
-		g.label(fmt.Sprintf(".L.return.%s", ty.Name))
+		g.writer.Label(fmt.Sprintf(".L.return.%s", ty.Name))
 		g.epilog()
 	case *parser.UnaryExp:
 		switch ty.Op {
@@ -188,24 +188,24 @@ func (g *Generator) walk(node parser.Node) {
 			g.address(g.currentFn, ty.Right) // RAXに目標のアドレスが載る
 		case "*":
 			g.walk(ty.Right) // RAXに目標のアドレスが載る
-			g.mov(RAX, "["+RAX+"]")
+			g.writer.Mov(RAX, g.writer.Address(RAX))
 		case "+":
 			// do nothing ( +5 -> 5)
 		case "-":
 			g.walk(ty.Right)
-			g.neg(RAX)
+			g.writer.Neg(RAX)
 		case "sizeof":
 			size := reduceSizeof(ty)
-			g.mov(RAX, fmt.Sprintf("%d", size))
+			g.writer.Mov(RAX, fmt.Sprintf("%d", size))
 		}
 	case *parser.DeclarationStmt:
 		for _, local := range ty.LV.Locals {
 			if ty.Exp != nil {
 				g.address(g.currentFn, local)
-				g.push(RAX) // 直近2つのRAXが必要な場合は前のRAXをスタックに退避
+				g.writer.Push(RAX) // 直近2つのRAXが必要な場合は前のRAXをスタックに退避
 				g.walk(ty.Exp)
-				g.pop(RDI)
-				g.mov("["+RDI+"]", RAX)
+				g.writer.Pop(RDI)
+				g.writer.Mov(g.writer.Address(RDI), RAX)
 			}
 		}
 		// 戻り値はRAXに入っている
@@ -213,10 +213,10 @@ func (g *Generator) walk(node parser.Node) {
 		infix := ty
 		if infix.Op == "=" {
 			g.address(g.currentFn, infix.Left)
-			g.push(RAX) // 直近2つのRAXが必要な場合は前のRAXをスタックに退避
+			g.writer.Push(RAX) // 直近2つのRAXが必要な場合は前のRAXをスタックに退避
 			g.walk(infix.Right)
-			g.pop(RDI)
-			g.mov("["+RDI+"]", RAX)
+			g.writer.Pop(RDI)
+			g.writer.Mov(g.writer.Address(RDI), RAX)
 			return
 		}
 
@@ -229,46 +229,46 @@ func (g *Generator) walk(node parser.Node) {
 		}
 
 		g.walk(infix.Right) // 先に計算した方がRDIに入るから右辺を先にしないと-の時問題
-		g.push(RAX)
+		g.writer.Push(RAX)
 		g.walk(infix.Left)
-		g.pop(RDI)
+		g.writer.Pop(RDI)
 
 		switch infix.Op {
 		case "+":
-			g.add(RAX, RDI)
+			g.writer.Add(RAX, RDI)
 		case "-":
-			g.sub(RAX, RDI) // 右辺をRDIに入れているから
+			g.writer.Sub(RAX, RDI) // 右辺をRDIに入れているから
 		case "*":
-			g.mul(RAX, RDI)
+			g.writer.Mul(RAX, RDI)
 		case "/":
-			g.div(RDI)
+			g.writer.Div(RDI)
 		case ">":
 			// swap RAX and RDI
-			g.push(RAX)
-			g.mov(RAX, RDI)
-			g.pop(RDI)
+			g.writer.Push(RAX)
+			g.writer.Mov(RAX, RDI)
+			g.writer.Pop(RDI)
 			fallthrough
 		case "<":
-			g.cmp(RAX, RDI)
-			g.setl(AL)
-			g.movzb(RAX, AL)
+			g.writer.Cmp(RAX, RDI)
+			g.writer.Setl(AL)
+			g.writer.Movzb(RAX, AL)
 		case ">=":
-			g.push(RAX)
-			g.mov(RAX, RDI)
-			g.pop(RDI)
+			g.writer.Push(RAX)
+			g.writer.Mov(RAX, RDI)
+			g.writer.Pop(RDI)
 			fallthrough
 		case "<=":
-			g.cmp(RAX, RDI)
-			g.setle(AL)
-			g.movzb(RAX, AL)
+			g.writer.Cmp(RAX, RDI)
+			g.writer.Setle(AL)
+			g.writer.Movzb(RAX, AL)
 		case "==":
-			g.cmp(RAX, RDI)
-			g.sete(AL)
-			g.movzb(RAX, AL)
+			g.writer.Cmp(RAX, RDI)
+			g.writer.Sete(AL)
+			g.writer.Movzb(RAX, AL)
 		case "!=":
-			g.cmp(RAX, RDI)
-			g.setne(AL)
-			g.movzb(RAX, AL)
+			g.writer.Cmp(RAX, RDI)
+			g.writer.Setne(AL)
+			g.writer.Movzb(RAX, AL)
 		}
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown node: %T, %s\n", node, node.String())
@@ -276,125 +276,16 @@ func (g *Generator) walk(node parser.Node) {
 	}
 }
 
-func (g *Generator) header() {
-	io.WriteString(g.out, HEADER)
-}
-
 func (g *Generator) prolog(stackSize int) {
-	g.push(RBP)
-	g.mov(RBP, RSP)
-	g.sub(RSP, fmt.Sprintf("%d", stackSize))
+	g.writer.Push(RBP)
+	g.writer.Mov(RBP, RSP)
+	g.writer.Sub(RSP, fmt.Sprintf("%d", stackSize))
 }
 
 func (g *Generator) epilog() {
-	g.mov(RSP, RBP)
-	g.pop(RBP)
-	g.ret()
-}
-
-func (g *Generator) mov(rad string, val string) {
-	s := fmt.Sprintf("  mov %s, %s\n", rad, val)
-	io.WriteString(g.out, s)
-}
-
-func (g *Generator) add(rad1, rad2 string) {
-	s := fmt.Sprintf("  add %s, %s\n", rad1, rad2)
-	io.WriteString(g.out, s)
-}
-
-func (g *Generator) sub(rad1, rad2 string) {
-	s := fmt.Sprintf("  sub %s, %s\n", rad1, rad2)
-	io.WriteString(g.out, s)
-}
-
-func (g *Generator) mul(rad1, rad2 string) {
-	s := fmt.Sprintf("  imul %s, %s\n", rad1, rad2)
-	io.WriteString(g.out, s)
-}
-
-func (g *Generator) div(rad string) {
-	io.WriteString(g.out, "  cqo\n")     // RAXのコードを伸ばしてRDX/RAXにセットする
-	s := fmt.Sprintf("  idiv %s\n", rad) // RDX/RAXを128bitとみなして`rad`のレジスタの値で符号付除算
-	io.WriteString(g.out, s)
-}
-
-func (g *Generator) push(val string) {
-	s := fmt.Sprintf("  push %s\n", val)
-	io.WriteString(g.out, s)
-}
-
-func (g *Generator) pop(rad string) {
-	s := fmt.Sprintf("  pop %s\n", rad)
-	io.WriteString(g.out, s)
-}
-
-func (g *Generator) sete(rad1 string) {
-	s := fmt.Sprintf("  sete %s\n", rad1)
-	io.WriteString(g.out, s)
-}
-
-func (g *Generator) setne(rad1 string) {
-	s := fmt.Sprintf("  setne %s\n", rad1)
-	io.WriteString(g.out, s)
-}
-
-func (g *Generator) setl(rad1 string) {
-	s := fmt.Sprintf("  setl %s\n", rad1)
-	io.WriteString(g.out, s)
-}
-
-func (g *Generator) setle(rad1 string) {
-	s := fmt.Sprintf("  setle %s\n", rad1)
-	io.WriteString(g.out, s)
-}
-
-func (g *Generator) je(label string) {
-	s := fmt.Sprintf("  je %s\n", label)
-	io.WriteString(g.out, s)
-}
-
-func (g *Generator) jne(label string) {
-	s := fmt.Sprintf("  jne %s\n", label)
-	io.WriteString(g.out, s)
-}
-
-func (g *Generator) jmp(label string) {
-	s := fmt.Sprintf("  jmp %s\n", label)
-	io.WriteString(g.out, s)
-}
-
-func (g *Generator) call(label string) {
-	s := fmt.Sprintf("  call %s\n", label)
-	io.WriteString(g.out, s)
-}
-
-func (g *Generator) cmp(rad1, rad2 string) {
-	s := fmt.Sprintf("  cmp %s, %s\n", rad1, rad2)
-	io.WriteString(g.out, s)
-}
-
-func (g *Generator) movzb(rad1, rad2 string) {
-	s := fmt.Sprintf("  movzb %s, %s\n", rad1, rad2)
-	io.WriteString(g.out, s)
-}
-
-func (g *Generator) lea(rad1, rad2 string, offset int) {
-	s := fmt.Sprintf("  lea %s, [%s%d]\n", rad1, rad2, offset)
-	io.WriteString(g.out, s)
-}
-
-func (g *Generator) neg(rad1 string) {
-	s := fmt.Sprintf("  neg %s\n", rad1)
-	io.WriteString(g.out, s)
-}
-
-func (g *Generator) ret() {
-	io.WriteString(g.out, "  ret\n")
-}
-
-func (g *Generator) label(name string) {
-	s := fmt.Sprintf("%s:\n", name)
-	io.WriteString(g.out, s)
+	g.writer.Mov(RSP, RBP)
+	g.writer.Pop(RBP)
+	g.writer.Ret()
 }
 
 func (g *Generator) genLbl() string {
@@ -403,14 +294,30 @@ func (g *Generator) genLbl() string {
 	return s
 }
 
-func (g *Generator) getOffset(fn *parser.FuncDefNode, name string) int {
+func (g *Generator) getOffset(fn *parser.FuncDefNode, node interface{}) int {
+	var name string
+	var ty types.Type
+
+	switch node := node.(type) {
+	case *parser.LocalVariable:
+		name = node.Name
+		ty = node.Type
+	case *parser.IdentExp:
+		name = node.Name
+		ty = node.Type()
+	default:
+		fmt.Fprintf(os.Stderr, "Invalid node: %T\n", node)
+		os.Exit(1)
+	}
+
 	offset, ok := fn.Offsets[name]
+	//fmt.Fprintf(os.Stderr, "name=%s, offset=%d\n", name, offset)
 	if !ok {
 		fmt.Fprintf(os.Stderr, "Invalid ident name: %s\n", name)
 		os.Exit(1)
 	}
 
-	return fn.StackSize - offset + 8
+	return fn.StackSize - offset + ty.StackSize()
 }
 
 func reduceSizeof(unary *parser.UnaryExp) int {

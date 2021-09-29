@@ -16,6 +16,7 @@ assert() {
   fi
 }
 
+#assert 0 array1.c
 assert 14 sizeof1.c
 assert 18 sizeof2.c
 assert 4  sizeof3.c

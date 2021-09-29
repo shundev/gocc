@@ -14,6 +14,7 @@ var (
 type Type interface {
 	String() string
 	Size() int
+	StackSize() int
 }
 
 type Int struct {
@@ -25,6 +26,10 @@ func (t *Int) String() string {
 
 func (t *Int) Size() int {
 	return 4
+}
+
+func (t *Int) StackSize() int {
+	return 8
 }
 
 type IntPointer struct {
@@ -48,6 +53,10 @@ func (t *IntPointer) String() string {
 
 func (t *IntPointer) Size() int {
 	return 8
+}
+
+func (t *IntPointer) StackSize() int {
+	return t.Size()
 }
 
 func GetInt() Type {
@@ -84,6 +93,10 @@ func (t *Array) String() string {
 
 func (t *Array) Size() int {
 	return t.Base.Size() * t.Length
+}
+
+func (t *Array) StackSize() int {
+	return t.Base.StackSize() * t.Length
 }
 
 func ArrayOf(base Type, length int) Type {

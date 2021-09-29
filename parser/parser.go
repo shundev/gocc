@@ -646,7 +646,7 @@ func (p *Parser) funcdefargs() *FuncDefArgs {
 			p.tzer.Error(p.cur.Col, "Declared already: %s", p.cur.Str)
 		}
 
-		p.curFn.offsetCnt += 8
+		p.curFn.offsetCnt += local.Type.StackSize()
 		p.curFn.Offsets[local.Name] = p.curFn.offsetCnt
 		p.locals[local.Name] = local.Type
 	}
@@ -712,8 +712,8 @@ func (p *Parser) declarator(ty types.Type) (types.Type, *token.Token) {
 		p.nextTkn() // [
 		p.expect(p.cur, token.NUM)
 		length, err := strconv.Atoi(p.cur.Str)
-		if err != nil {
-			p.tzer.Error(p.cur.Col, "a number is expected. got %s.", p.cur.Str)
+		if err != nil || length <= 0 {
+			p.tzer.Error(p.cur.Col, "a positive number is expected. got %s.", p.cur.Str)
 			os.Exit(1)
 		}
 		p.nextTkn()
@@ -755,7 +755,7 @@ func (p *Parser) declarationStmt() *StmtListNode {
 				p.tzer.Error(p.cur.Col, "Declared already: %s", p.cur.Str)
 			}
 
-			p.curFn.offsetCnt += 8
+			p.curFn.offsetCnt += local.Type.StackSize()
 			p.curFn.Offsets[local.Name] = p.curFn.offsetCnt
 			p.locals[local.Name] = local.Type
 		}
@@ -773,7 +773,7 @@ func (p *Parser) declarationStmt() *StmtListNode {
 				p.tzer.Error(p.cur.Col, "Declared already: %s", p.cur.Str)
 			}
 
-			p.curFn.offsetCnt += 8
+			p.curFn.offsetCnt += local.Type.StackSize()
 			p.curFn.Offsets[local.Name] = p.curFn.offsetCnt
 			p.locals[local.Name] = local.Type
 		}
