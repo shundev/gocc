@@ -243,6 +243,8 @@ func (g *Generator) walk(node parser.Node) {
 			switch infix.Left.Type().(type) {
 			case *types.IntPointer:
 				infix = parser.Scale(infix)
+			case *types.Array:
+				infix = parser.Scale(infix)
 			}
 		}
 
