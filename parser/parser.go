@@ -248,6 +248,37 @@ func (n *IdentExp) Type() types.Type {
 	return n.typ
 }
 
+/* Array Index Access */
+
+type IndexExp struct {
+	Array *LocalVariable
+	Index Exp
+	token *token.Token
+}
+
+func (n *IndexExp) expNode() {}
+
+func (n *IndexExp) Token() *token.Token {
+	return n.token
+}
+
+func (n *IndexExp) String() string {
+	var out bytes.Buffer
+	out.WriteString(n.Array.Name)
+	out.WriteString("[")
+	out.WriteString(n.Index.String())
+	out.WriteString("]")
+	return out.String()
+}
+
+func (n *IndexExp) Type() types.Type {
+	arrayTyp, ok := n.Array.Type.(*types.Array)
+	if !ok {
+		fmt.Fprintf(os.Stderr, "Array type expected, but got=%s", n.Array.Type)
+	}
+	return arrayTyp.Base
+}
+
 /* Func Call Params */
 
 type FuncCallParams struct {
@@ -525,7 +556,7 @@ lg          = add ("<" add)?
 add         = mul ("+" mul | "-" mul)*
 mul         = unary ("*" unary | "/" unary)*
 unary       = ("+" | "-" | "sizeof")? primary
-primary     = num | funccall | ident | "(" expr ")"
+primary     = (ident "[" expr "]") | num | funccall | ident | "(" expr ")"
 funccall    = ident funcparams
 funcparams  = "(" ( expr ("," expr)* ")" | ")")
 
@@ -536,7 +567,7 @@ declaration =
       ("," declarator ("=" expr)?)
     *)?
   ";"
-declarator = "*"* ident
+declarator = "*"* ident ("[" num "]")?
 declspec = "int"
 */
 
@@ -546,14 +577,14 @@ type Parser struct {
 	tzer      *token.Tokenizer
 	head, cur *token.Token
 	curFn     *FuncDefNode
-	locals    map[string]types.Type
+	locals    map[string]*LocalVariable
 	funcdefs  map[string]*FuncDefNode
 }
 
 func New(tzer *token.Tokenizer) *Parser {
 	parser := &Parser{
 		tzer:     tzer,
-		locals:   map[string]types.Type{},
+		locals:   map[string]*LocalVariable{},
 		funcdefs: map[string]*FuncDefNode{},
 	}
 	parser.head = parser.tzer.Tokenize()
@@ -652,7 +683,7 @@ func (p *Parser) funcdefargs() *FuncDefArgs {
 
 		p.curFn.offsetCnt += local.Type.StackSize()
 		p.curFn.Offsets[local.Name] = p.curFn.offsetCnt
-		p.locals[local.Name] = local.Type
+		p.locals[local.Name] = local
 	}
 
 	return args
@@ -761,7 +792,7 @@ func (p *Parser) declarationStmt() *StmtListNode {
 
 			p.curFn.offsetCnt += local.Type.StackSize()
 			p.curFn.Offsets[local.Name] = p.curFn.offsetCnt
-			p.locals[local.Name] = local.Type
+			p.locals[local.Name] = local
 		}
 
 		left := &LocalVariableNode{Locals: locals, token: initTok}
@@ -779,7 +810,7 @@ func (p *Parser) declarationStmt() *StmtListNode {
 
 			p.curFn.offsetCnt += local.Type.StackSize()
 			p.curFn.Offsets[local.Name] = p.curFn.offsetCnt
-			p.locals[local.Name] = local.Type
+			p.locals[local.Name] = local
 		}
 
 		left := &LocalVariableNode{Locals: locals, token: initTok}
@@ -1049,7 +1080,31 @@ func (p *Parser) primary() Exp {
 	case token.NUM:
 		return p.num()
 	case token.IDENT:
-		return p.ident()
+		exp := p.ident()
+		ident, ok := exp.(*IdentExp)
+		if !ok {
+			// funccall
+			return exp
+		}
+
+		if p.cur.Kind == token.LBRACKET {
+			p.nextTkn() // [
+			index := p.expr()
+			p.expect(p.cur, token.RBRACKET)
+			p.nextTkn() // ]
+
+			array, ok := p.locals[ident.Name]
+			if !ok {
+				p.Error(ident.token, "Array %s not defined.", ident.Name)
+			}
+			return &IndexExp{
+				Array: array,
+				Index: index,
+				token: ident.token,
+			}
+		}
+
+		return ident
 	case token.LPAREN:
 		p.nextTkn() // (
 		n := p.expr()
@@ -1087,13 +1142,14 @@ func (p *Parser) ident() Exp {
 	if p.cur.Kind == token.LPAREN {
 		return p.funccall(tkn)
 	} else {
-		typ, ok := p.locals[tkn.Str]
+		// FIXME: 関数ごとのローカルを観なきゃダメじゃない？
+		local, ok := p.locals[tkn.Str]
 		if !ok {
 			fmt.Fprintf(os.Stderr, "Ident %s not defined.\n", tkn.Str)
 			os.Exit(1)
 		}
 		return &IdentExp{
-			Name: tkn.Str, token: tkn, typ: typ,
+			Name: tkn.Str, token: tkn, typ: local.Type,
 		}
 	}
 }
