@@ -221,7 +221,7 @@ func (n *UnaryExp) Type() types.Type {
 		return types.GetInt()
 	}
 
-	fmt.Fprintf(os.Stderr, "Invalid op: %s\n", n.Op)
+	err("Invalid op: %s", n.Op)
 	os.Exit(1)
 	return types.GetInt()
 }
@@ -251,7 +251,7 @@ func (n *IdentExp) Type() types.Type {
 /* Array Index Access */
 
 type IndexExp struct {
-	Array *LocalVariable
+	Ident *IdentExp
 	Index Exp
 	token *token.Token
 }
@@ -264,7 +264,7 @@ func (n *IndexExp) Token() *token.Token {
 
 func (n *IndexExp) String() string {
 	var out bytes.Buffer
-	out.WriteString(n.Array.Name)
+	out.WriteString(n.Ident.Name)
 	out.WriteString("[")
 	out.WriteString(n.Index.String())
 	out.WriteString("]")
@@ -272,9 +272,9 @@ func (n *IndexExp) String() string {
 }
 
 func (n *IndexExp) Type() types.Type {
-	arrayTyp, ok := n.Array.Type.(*types.Array)
+	arrayTyp, ok := n.Ident.Type().(*types.Array)
 	if !ok {
-		fmt.Fprintf(os.Stderr, "Array type expected, but got=%s", n.Array.Type)
+		err("Array type expected, but got=%s", n.Ident.Type())
 	}
 	return arrayTyp.Base
 }
@@ -311,7 +311,7 @@ type FuncCallExp struct {
 	Name   string
 	Params *FuncCallParams
 	token  *token.Token
-	def    *FuncDefNode
+	Def    *FuncDefNode
 }
 
 func (n *FuncCallExp) expNode() {}
@@ -321,7 +321,7 @@ func (n *FuncCallExp) Token() *token.Token {
 }
 
 func (n *FuncCallExp) Type() types.Type {
-	return n.def.Type
+	return n.Def.Type
 }
 
 func (n *FuncCallExp) String() string {
@@ -722,7 +722,7 @@ func (p *Parser) stmt() Stmt {
 }
 
 func (p *Parser) declspec() types.Type {
-	p.debug("declspec")
+	debug("declspec")
 	p.expect(p.cur, token.TYPE)
 	p.nextTkn()
 	return types.GetInt()
@@ -730,7 +730,7 @@ func (p *Parser) declspec() types.Type {
 
 // declarator = "*"* ident ("[" num "]")?
 func (p *Parser) declarator(ty types.Type) (types.Type, *token.Token) {
-	p.debug("declarator")
+	debug("declarator")
 	for p.cur.Kind == token.ASTERISK {
 		ty = types.PointerTo(ty)
 		p.nextTkn()
@@ -761,7 +761,7 @@ func (p *Parser) declarator(ty types.Type) (types.Type, *token.Token) {
 }
 
 func (p *Parser) declarationStmt() *StmtListNode {
-	p.debug("declarationStmt")
+	debug("declarationStmt")
 	initTok := p.cur
 	baseTy := p.declspec() // "int"
 
@@ -934,12 +934,12 @@ func (p *Parser) returnStmt() *ReturnStmt {
 }
 
 func (p *Parser) expr() Exp {
-	p.debug("expr")
+	debug("expr")
 	return p.assign()
 }
 
 func (p *Parser) assign() Exp {
-	p.debug("assign")
+	debug("assign")
 	node := p.eq()
 
 	if p.cur.Kind == token.ASSIGN {
@@ -962,7 +962,7 @@ func (p *Parser) assign() Exp {
 }
 
 func (p *Parser) eq() Exp {
-	p.debug("eq")
+	debug("eq")
 	node := p.lg()
 
 	if p.cur.Kind == token.EQ || p.cur.Kind == token.NEQ {
@@ -978,7 +978,7 @@ func (p *Parser) eq() Exp {
 }
 
 func (p *Parser) lg() Exp {
-	p.debug("lg")
+	debug("lg")
 	node := p.add()
 
 	switch p.cur.Kind {
@@ -1001,7 +1001,7 @@ func (p *Parser) lg() Exp {
 }
 
 func (p *Parser) add() Exp {
-	p.debug("add")
+	debug("add")
 	node := p.mul()
 
 	for p.cur.Kind == token.PLUS || p.cur.Kind == token.MINUS {
@@ -1025,7 +1025,7 @@ func (p *Parser) add() Exp {
 }
 
 func (p *Parser) mul() Exp {
-	p.debug("mul")
+	debug("mul")
 	node := p.unary()
 
 	for p.cur.Kind == token.ASTERISK || p.cur.Kind == token.SLASH {
@@ -1049,7 +1049,7 @@ func (p *Parser) mul() Exp {
 }
 
 func (p *Parser) unary() Exp {
-	p.debug("unary")
+	debug("unary")
 	switch p.cur.Kind {
 	case token.PLUS:
 		fallthrough
@@ -1075,7 +1075,7 @@ func (p *Parser) unary() Exp {
 }
 
 func (p *Parser) primary() Exp {
-	p.debug("primary")
+	debug("primary")
 	switch p.cur.Kind {
 	case token.NUM:
 		return p.num()
@@ -1093,12 +1093,12 @@ func (p *Parser) primary() Exp {
 			p.expect(p.cur, token.RBRACKET)
 			p.nextTkn() // ]
 
-			array, ok := p.locals[ident.Name]
+			_, ok := p.locals[ident.Name]
 			if !ok {
 				p.Error(ident.token, "Array %s not defined.", ident.Name)
 			}
 			return &IndexExp{
-				Array: array,
+				Ident: ident,
 				Index: index,
 				token: ident.token,
 			}
@@ -1145,7 +1145,7 @@ func (p *Parser) ident() Exp {
 		// FIXME: 関数ごとのローカルを観なきゃダメじゃない？
 		local, ok := p.locals[tkn.Str]
 		if !ok {
-			fmt.Fprintf(os.Stderr, "Ident %s not defined.\n", tkn.Str)
+			err("Ident %s not defined.\n", tkn.Str)
 			os.Exit(1)
 		}
 		return &IdentExp{
@@ -1161,15 +1161,14 @@ func (p *Parser) funccall(identTkn *token.Token) *FuncCallExp {
 
 	def, ok := p.funcdefs[identTkn.Str]
 	if !ok {
-		fmt.Fprintf(os.Stderr, "Function %s not defined.\n", identTkn.Str)
-		os.Exit(1)
+		// コンパイル後にリンクされるので問題無し.
 	}
 
 	exp := &FuncCallExp{
 		Name:   identTkn.Str,
 		Params: &FuncCallParams{Exps: []Exp{}},
+		Def:    def,
 		token:  identTkn,
-		def:    def,
 	}
 
 	if p.cur.Kind == token.RPAREN {
@@ -1197,13 +1196,15 @@ func (p *Parser) funccallparams() *FuncCallParams {
 }
 
 func Scale(infix *InfixExp) *InfixExp {
+	debug("Scale")
 	right, ok := infix.Right.(*NumExp)
 	if !ok {
 		fmt.Fprintln(os.Stderr, "Failed to scale.")
 		os.Exit(1)
 	}
 
-	num8 := &NumExp{Val: 8}
+	// 今は本とは逆のローカル変数順にしているため逆方向
+	num8 := &NumExp{Val: -8}
 	mul := &InfixExp{Left: right, Right: num8, Op: "*"}
 	infix.Right = mul
 	return infix
@@ -1213,10 +1214,14 @@ func (p *Parser) expect(token *token.Token, kinds ...token.TokenKind) {
 	p.tzer.Expect(token, kinds...)
 }
 
-func (p *Parser) debug(s string, args ...interface{}) {
+func debug(s string, args ...interface{}) {
 	if DEBUG {
-		fmt.Fprintf(os.Stderr, s+"\n")
+		err(s, args...)
 	}
+}
+
+func err(s string, args ...interface{}) {
+	fmt.Fprintf(os.Stderr, s+"\n")
 }
 
 func alignTo(n, align int) int {

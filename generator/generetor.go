@@ -10,7 +10,10 @@ import (
 	"os"
 )
 
-const INTEL_SYNTAX = true
+const (
+	DEBUG        = true
+	INTEL_SYNTAX = true
+)
 
 const (
 	RAX = "rax"
@@ -56,9 +59,17 @@ func (g *Generator) Error(token *token.Token, msg string, args ...interface{}) {
 
 // push corresponding address to the top of stack
 func (g *Generator) address(fn *parser.FuncDefNode, node interface{}) {
+	debug("addr:\t%T", node)
 	switch ty := node.(type) {
+	case *parser.IndexExp:
+		offset := g.getOffset(fn, ty.Ident)
+		g.walk(ty.Index) // 結果の数値がRAXに乗る
+		src := fmt.Sprintf("%s+%s*%d", RBP, RAX, ty.Type().StackSize())
+		g.writer.Lea(-offset, src, RAX)
+		return
 	case *parser.UnaryExp:
 		// Nested unary.
+		debug("Op:\t%s", ty.Op)
 		if ty.Op == "*" {
 			g.walk(ty.Right)
 			return
@@ -73,11 +84,12 @@ func (g *Generator) address(fn *parser.FuncDefNode, node interface{}) {
 		return
 	}
 
-	fmt.Fprintf(os.Stderr, "address must be a ident node, but got: %T\n", node)
+	debug("address must be a ident node, but got: %T", node)
 	os.Exit(1)
 }
 
 func (g *Generator) walk(node parser.Node) {
+	debug("walk:\t%T", node)
 	switch ty := node.(type) {
 	case *parser.ProgramNode:
 		for _, stmt := range ty.FuncDefs {
@@ -142,25 +154,29 @@ func (g *Generator) walk(node parser.Node) {
 	case *parser.NumExp:
 		val := fmt.Sprintf("%d", ty.Val)
 		g.writer.Mov(val, RAX)
+	case *parser.IndexExp:
+		g.address(g.currentFn, ty) // 配列のあるインデックスのアドレスがRAXに乗る
+		g.writer.Mov(g.writer.Address(RAX), RAX)
 	case *parser.IdentExp:
 		// 変数呼び出し
 		g.address(g.currentFn, ty)
 		g.writer.Mov(g.writer.Address(RAX), RAX)
 	case *parser.FuncCallExp:
 		// 関数呼び出し
-		// FIXME: 型チェック
-		fn, ok := g.fns[ty.Name]
-		if !ok {
-			g.Error(ty.Token(), "Function definition not found.")
+		defined := ty.Def != nil
+		if !defined {
+			// コンパイル時点では定義なしでも、リンクされるので問題無し
 		}
 
 		for i, param := range ty.Params.Exps {
-			arg := fn.Args.LV.Locals[i]
-			if arg.Type.String() != param.Type().String() {
-				g.Error(
-					param.Token(),
-					"Param types do not match for %s. Expected %s, but got %s.",
-					arg.Name, arg.Type.String(), param.Type().String())
+			if defined {
+				arg := ty.Def.Args.LV.Locals[i]
+				if arg.Type.String() != param.Type().String() {
+					g.Error(
+						param.Token(),
+						"Param types do not match for %s. Expected %s, but got %s.",
+						arg.Name, arg.Type.String(), param.Type().String())
+				}
 			}
 
 			g.walk(param)
@@ -177,7 +193,7 @@ func (g *Generator) walk(node parser.Node) {
 		g.fns[ty.Name] = ty
 		g.currentFn = ty
 		g.writer.Label(ty.Name)
-		g.prolog(ty.StackSize)
+		g.prolog()
 
 		fn, ok := g.fns[ty.Name]
 		if !ok {
@@ -201,6 +217,7 @@ func (g *Generator) walk(node parser.Node) {
 		g.writer.Label(fmt.Sprintf(".L.return.%s", ty.Name))
 		g.epilog()
 	case *parser.UnaryExp:
+		debug("Op:\t%s", ty.Op)
 		switch ty.Op {
 		case "&":
 			g.address(g.currentFn, ty.Right) // RAXに目標のアドレスが載る
@@ -228,6 +245,7 @@ func (g *Generator) walk(node parser.Node) {
 		}
 		// 戻り値はRAXに入っている
 	case *parser.InfixExp:
+		debug("Op:\t %s", ty.Op)
 		infix := ty
 		if infix.Op == "=" {
 			g.address(g.currentFn, infix.Left)
@@ -296,10 +314,10 @@ func (g *Generator) walk(node parser.Node) {
 	}
 }
 
-func (g *Generator) prolog(stackSize int) {
+func (g *Generator) prolog() {
 	g.writer.Push(RBP)
 	g.writer.Mov(RSP, RBP)
-	g.writer.Sub(fmt.Sprintf("%d", stackSize), RSP)
+	g.writer.Sub(fmt.Sprintf("%d", g.currentFn.StackSize), RSP)
 }
 
 func (g *Generator) epilog() {
@@ -323,19 +341,30 @@ func (g *Generator) getOffset(fn *parser.FuncDefNode, node interface{}) int {
 	case *parser.IdentExp:
 		name = node.Name
 	default:
-		fmt.Fprintf(os.Stderr, "Invalid node: %T\n", node)
+		err("Invalid node: %T\n", node)
 		os.Exit(1)
 	}
 
 	offset, ok := fn.Offsets[name]
 	if !ok {
-		fmt.Fprintf(os.Stderr, "Invalid ident name: %s\n", name)
+		err("Invalid ident name: %s\n", name)
 		os.Exit(1)
 	}
 
-	return fn.StackSize - offset + 8
+	debug("name: %s, offset; %d", name, offset)
+	return offset
 }
 
 func reduceSizeof(unary *parser.UnaryExp) int {
 	return unary.Right.Type().Size()
+}
+
+func debug(s string, args ...interface{}) {
+	if DEBUG {
+		err(s, args...)
+	}
+}
+
+func err(s string, args ...interface{}) {
+	fmt.Fprintf(os.Stderr, s+"\n", args...)
 }

@@ -5,7 +5,11 @@ main: main.go token/*.go parser/*.go generator/*.go repl/*.go writer/*.go
 
 build: main
 
-test: main
+hello.o: c/hello.c
+	cc -c c/hello.c
+
+
+test: main hello.o
 	go test ./parser ./token ./generator ./repl ./writer
 	./test.sh
 
@@ -15,4 +19,14 @@ repl:
 clean:
 	rm -f main tmp* *.o *~
 
-.PHONY: test build clean repl
+# エラーになるかもしれないが、tmpのステータスコードが表示される
+sample: main hello.o
+	./main testcases/sample.c >./tmp.s 2>>./logs/build.log
+	cc -o tmp tmp.s
+	./tmp
+
+asm:
+	cc -o tmp tmp.s
+	./tmp
+
+.PHONY: test build clean repl sample asm

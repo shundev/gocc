@@ -141,7 +141,7 @@ func (g *Intel) Movzb(rad1, rad2 string) {
 }
 
 func (g *Intel) Lea(offset int, rad1, rad2 string) {
-	s := fmt.Sprintf("  lea %s, [%s%d]\n", rad2, rad1, offset)
+	s := fmt.Sprintf("  lea %s, %d[%s]\n", rad2, offset, rad1)
 	io.WriteString(g.buf, s)
 }
 

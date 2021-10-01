@@ -10,7 +10,7 @@ assert() {
     exit 1
   fi
 
-  cc -o tmp tmp.s
+  cc -o tmp tmp.s hello.o
   ./tmp
   actual="$?"
 
@@ -22,16 +22,17 @@ assert() {
   fi
 }
 
-assert 10 array1.c
+assert 2 array1.c
+assert 10 array2.c
 assert 6  func1.c
 assert 8  func2.c
-assert 11 manyfuncargs.c
+#assert 11 manyfuncargs.c
+assert 55 fib.c
 assert 14 sizeof1.c
 assert 18 sizeof2.c
 assert 4  sizeof3.c
 assert 8  sizeof4.c
 assert 4  sizeof5.c
-assert 55 fib.c
 assert 22 assign.c
 assert 35 ident.c
 assert 3  pointer1.c
