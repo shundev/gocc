@@ -382,6 +382,22 @@ func (g *Generator) eval(exp parser.Exp) parser.Exp {
 	switch exp := exp.(type) {
 	case *parser.NumExp:
 		return exp
+	case *parser.UnaryExp:
+		right := g.eval(exp.Right)
+		r, ok := right.(*parser.NumExp)
+		if !ok {
+			g.Error(right.Token(), "Invalid right for unary exp: %s", right)
+		}
+
+		if exp.Op == "+" {
+			return r
+		}
+
+		if exp.Op == "-" {
+			return &parser.NumExp{Val: -r.Val}
+		}
+
+		g.Error(exp.Token(), "Invalid operator for global rvalue unary right: %s", exp.Op)
 	case *parser.InfixExp:
 		left := g.eval(exp.Left)
 		right := g.eval(exp.Right)
