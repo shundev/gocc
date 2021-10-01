@@ -633,7 +633,7 @@ func (p *Parser) nextTkn() {
 }
 
 func (p *Parser) backTo(to *token.Token) {
-	if p.cur != to {
+	for p.cur != to {
 		p.cur = p.cur.Prev
 	}
 }
@@ -659,12 +659,19 @@ func (p *Parser) program() *ProgramNode {
 	for p.cur.Kind != token.EOF {
 		n := p.global()
 		switch n := n.(type) {
-		case *DeclarationStmt:
-			node.GlobalStmts = append(node.GlobalStmts, n)
+		case *StmtListNode:
+			for _, stmt := range n.Stmts {
+				global, ok := stmt.(*DeclarationStmt)
+				if !ok {
+					p.Error(n.Token(), "Invalid global variable: %s", n)
+				}
+
+				node.GlobalStmts = append(node.GlobalStmts, global)
+			}
 		case *FuncDefNode:
 			node.FuncDefs = append(node.FuncDefs, n)
 		default:
-			p.Error(n.Token(), "Unexpected top level token: %s", n)
+			p.Error(n.Token(), "Unexpected top level token: '%s' of type '%s'", n)
 		}
 
 	}
