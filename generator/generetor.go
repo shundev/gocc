@@ -88,10 +88,30 @@ func (g *Generator) address(fn *parser.FuncDefNode, node interface{}) {
 	os.Exit(1)
 }
 
+func (g *Generator) global(node *parser.DeclarationStmt) {
+	for _, local := range node.LV.Locals {
+		g.writer.Label(local.Name)
+		// XXX: 今はすべて8-byte
+		if node.Exp == nil {
+			g.writer.Text(".quad 0")
+		} else {
+			e, ok := g.eval(node.Exp).(*parser.NumExp)
+			if !ok {
+				g.Error(node.Exp.Token(), "Cannot evaluate rvalue of %s:", node.Exp)
+			}
+			s := fmt.Sprintf(".quad %d", e.Val)
+			g.writer.Text(s)
+		}
+	}
+}
+
 func (g *Generator) walk(node parser.Node) {
 	debug("walk:\t%T", node)
 	switch ty := node.(type) {
 	case *parser.ProgramNode:
+		for _, stmt := range ty.GlobalStmts {
+			g.global(stmt)
+		}
 		for _, stmt := range ty.FuncDefs {
 			g.walk(stmt)
 		}
@@ -356,6 +376,50 @@ func (g *Generator) getOffset(fn *parser.FuncDefNode, node interface{}) int {
 
 	debug("name: %s, offset; %d", name, offset)
 	return offset
+}
+
+func (g *Generator) eval(exp parser.Exp) parser.Exp {
+	switch exp := exp.(type) {
+	case *parser.NumExp:
+		return exp
+	case *parser.InfixExp:
+		left := g.eval(exp.Left)
+		right := g.eval(exp.Right)
+		l, ok := left.(*parser.NumExp)
+		if !ok {
+			g.Error(left.Token(), "Invalid left exp: %s", left)
+		}
+
+		r, ok := right.(*parser.NumExp)
+		if !ok {
+			g.Error(right.Token(), "Invalid right exp: %s", right)
+		}
+
+		if exp.Op == "+" {
+			val := l.Val + r.Val
+			return &parser.NumExp{Val: val}
+		}
+
+		if exp.Op == "-" {
+			val := l.Val - r.Val
+			return &parser.NumExp{Val: val}
+		}
+
+		if exp.Op == "*" {
+			val := l.Val * r.Val
+			return &parser.NumExp{Val: val}
+		}
+
+		if exp.Op == "/" {
+			val := l.Val / r.Val
+			return &parser.NumExp{Val: val}
+		}
+
+		g.Error(exp.Token(), "Invalid operator for global rvalue: %s", exp.Op)
+	}
+
+	g.Error(exp.Token(), "Invalid exp for global rvalue: %s", exp)
+	return nil
 }
 
 func reduceSizeof(unary *parser.UnaryExp) int {

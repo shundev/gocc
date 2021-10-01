@@ -22,6 +22,7 @@ assert() {
   fi
 }
 
+assert 0 global1.c
 assert 2 array1.c
 assert 10 array2.c
 assert 6  func1.c
