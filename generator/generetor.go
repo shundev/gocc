@@ -64,7 +64,7 @@ func (g *Generator) address(fn *parser.FuncDefNode, node interface{}) {
 	case *parser.IndexExp:
 		offset := g.getOffset(fn, ty.Ident)
 		g.walk(ty.Index) // 結果の数値がRAXに乗る
-		src := fmt.Sprintf("%s+%s*%d", RBP, RAX, ty.Type().StackSize())
+		src := g.writer.Index(RBP, RAX, ty.Type().StackSize())
 		g.writer.Lea(-offset, src, RAX)
 		return
 	case *parser.UnaryExp:

@@ -139,8 +139,17 @@ func (g *ATT) Label(name string) {
 	io.WriteString(g.buf, s)
 }
 
+func (g *ATT) Text(text string) {
+	s := fmt.Sprintf("  %s\n", text)
+	io.WriteString(g.buf, s)
+}
+
 func (g *ATT) Address(name string) string {
 	return fmt.Sprintf("(%%%s)", name)
+}
+
+func (g *ATT) Index(base, unit string, size int) string {
+	return fmt.Sprintf("%s,%%%s,%d", base, unit, size)
 }
 
 func prefixed(src string) string {

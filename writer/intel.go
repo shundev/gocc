@@ -30,7 +30,9 @@ type Writer interface {
 	Neg(rad1 string)
 	Ret()
 	Label(name string)
+	Text(text string)
 	Address(name string) string
+	Index(base, unit string, size int) string
 }
 
 type Intel struct {
@@ -159,6 +161,15 @@ func (g *Intel) Label(name string) {
 	io.WriteString(g.buf, s)
 }
 
+func (g *Intel) Text(text string) {
+	s := fmt.Sprintf("  %s\n", text)
+	io.WriteString(g.buf, s)
+}
+
 func (g *Intel) Address(name string) string {
 	return fmt.Sprintf("[%s]", name)
+}
+
+func (g *Intel) Index(base, unit string, size int) string {
+	return fmt.Sprintf("%s+%s*%d", base, unit, size)
 }
