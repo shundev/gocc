@@ -14,7 +14,7 @@ type Writer interface {
 	Sub(string, string)
 	Mul(string, string)
 	Div(string)
-	Lea(int, string, string)
+	Lea(string, string, string)
 	Push(string)
 	Pop(string)
 	Sete(string)
@@ -142,8 +142,8 @@ func (g *Intel) Movzb(rad1, rad2 string) {
 	io.WriteString(g.buf, s)
 }
 
-func (g *Intel) Lea(offset int, rad1, rad2 string) {
-	s := fmt.Sprintf("  lea %s, %d[%s]\n", rad2, offset, rad1)
+func (g *Intel) Lea(offset, rad1, rad2 string) {
+	s := fmt.Sprintf("  lea %s, %s[%s]\n", rad2, offset, rad1)
 	io.WriteString(g.buf, s)
 }
 

@@ -16,6 +16,7 @@ const (
 )
 
 const (
+	RIP = "rip"
 	RAX = "rax"
 	RBP = "rbp" // base pointer
 	RSP = "rsp" // stack pointer
@@ -40,8 +41,16 @@ type Generator struct {
 
 func New(p *parser.Parser, out io.Writer) *Generator {
 	writer := writer.New(out, INTEL_SYNTAX)
-	gen := &Generator{parser: p, writer: writer, fns: map[string]*parser.FuncDefNode{}}
+	gen := &Generator{
+		parser: p,
+		writer: writer,
+		fns:    map[string]*parser.FuncDefNode{},
+	}
 	return gen
+}
+
+func (g *Generator) globals() map[string]*parser.LocalVariable {
+	return g.parser.Globals
 }
 
 func (g *Generator) Gen() {
@@ -62,10 +71,10 @@ func (g *Generator) address(fn *parser.FuncDefNode, node interface{}) {
 	debug("addr:\t%T", node)
 	switch ty := node.(type) {
 	case *parser.IndexExp:
-		offset := g.getOffset(fn, ty.Ident)
+		offset, base := g.getOffset(fn, ty.Ident)
 		g.walk(ty.Index) // 結果の数値がRAXに乗る
-		src := g.writer.Index(RBP, RAX, ty.Type().StackSize())
-		g.writer.Lea(-offset, src, RAX)
+		src := g.writer.Index(base, RAX, ty.Type().StackSize())
+		g.writer.Lea(offset, src, RAX)
 		return
 	case *parser.UnaryExp:
 		// Nested unary.
@@ -75,12 +84,16 @@ func (g *Generator) address(fn *parser.FuncDefNode, node interface{}) {
 			return
 		}
 	case *parser.LocalVariable:
-		offset := g.getOffset(fn, ty)
-		g.writer.Lea(-offset, RBP, RAX)
-		return
+		if ty.IsLocal {
+			offset, base := g.getOffset(fn, ty)
+			g.writer.Lea(offset, base, RAX)
+			return
+		} else {
+			g.writer.Lea(ty.Name, RIP, RAX)
+		}
 	case *parser.IdentExp:
-		offset := g.getOffset(fn, ty)
-		g.writer.Lea(-offset, RBP, RAX)
+		offset, base := g.getOffset(fn, ty)
+		g.writer.Lea(offset, base, RAX)
 		return
 	}
 
@@ -222,13 +235,13 @@ func (g *Generator) walk(node parser.Node) {
 
 		// Prepare params
 		for i, local := range ty.Args.LV.Locals {
-			offset := g.getOffset(fn, local)
+			offset, base := g.getOffset(fn, local)
 			if i >= len(FUNCCALLREGS) {
 				g.writer.Pop(RDI)
-				g.writer.Lea(-offset, RBP, RAX)
+				g.writer.Lea(offset, RBP, RAX)
 				g.writer.Mov(RDI, g.writer.Address(RAX))
 			} else {
-				g.writer.Lea(-offset, RBP, RAX)
+				g.writer.Lea(offset, base, RAX)
 				g.writer.Mov(FUNCCALLREGS[i], g.writer.Address(RAX))
 			}
 		}
@@ -352,7 +365,7 @@ func (g *Generator) genLbl() string {
 	return s
 }
 
-func (g *Generator) getOffset(fn *parser.FuncDefNode, node interface{}) int {
+func (g *Generator) getOffset(fn *parser.FuncDefNode, node interface{}) (string, string) {
 	var name string
 	var ty types.Type
 
@@ -368,16 +381,24 @@ func (g *Generator) getOffset(fn *parser.FuncDefNode, node interface{}) int {
 		os.Exit(1)
 	}
 
+	// local
 	offset, ok := fn.Offsets[name]
-	if !ok {
-		err("Invalid ident name: '%s' of type '%s'\n", name, ty)
-		os.Exit(1)
+	if ok {
+		return fmt.Sprintf("-%d", offset), RBP
 	}
 
-	debug("name: %s, offset; %d", name, offset)
-	return offset
+	// global
+	_, ok = g.globals()[name]
+	if ok {
+		return name, RIP
+	}
+
+	err("Invalid ident name: '%s' of type '%s'\n", name, ty)
+	os.Exit(1)
+	return "", RBP
 }
 
+// FIXME: Dereference is not supported. i.e. int *x = &y
 func (g *Generator) eval(exp parser.Exp) parser.Exp {
 	switch exp := exp.(type) {
 	case *parser.NumExp:

@@ -120,8 +120,8 @@ func (g *ATT) Movzb(rad1, rad2 string) {
 	io.WriteString(g.buf, s)
 }
 
-func (g *ATT) Lea(offset int, rad1, rad2 string) {
-	s := fmt.Sprintf("  lea %d(%%%s), %%%s\n", offset, rad1, rad2)
+func (g *ATT) Lea(offset, rad1, rad2 string) {
+	s := fmt.Sprintf("  lea %s(%%%s), %%%s\n", offset, rad1, rad2)
 	io.WriteString(g.buf, s)
 }
 

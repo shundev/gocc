@@ -584,14 +584,14 @@ type Parser struct {
 	tzer      *token.Tokenizer
 	head, cur *token.Token
 	curFn     *FuncDefNode
-	globals   map[string]*LocalVariable
+	Globals   map[string]*LocalVariable
 	funcdefs  map[string]*FuncDefNode
 }
 
 func New(tzer *token.Tokenizer) *Parser {
 	parser := &Parser{
 		tzer:     tzer,
-		globals:  map[string]*LocalVariable{},
+		Globals:  map[string]*LocalVariable{},
 		funcdefs: map[string]*FuncDefNode{},
 	}
 	parser.head = parser.tzer.Tokenize()
@@ -643,7 +643,7 @@ func (p *Parser) getDef(name string) *LocalVariable {
 		return v
 	}
 
-	if v, ok := p.globals[name]; ok {
+	if v, ok := p.Globals[name]; ok {
 		return v
 	}
 
@@ -1242,11 +1242,11 @@ func (p *Parser) prepareLocals(locals []*LocalVariable) {
 			p.curFn.Offsets[local.Name] = p.curFn.offsetCnt
 			p.curFn.locals[local.Name] = local
 		} else {
-			if _, exists := p.globals[local.Name]; exists {
+			if _, exists := p.Globals[local.Name]; exists {
 				p.tzer.Error(p.cur, "Global variable already declared: %s", p.cur.Str)
 			}
 
-			p.globals[local.Name] = local
+			p.Globals[local.Name] = local
 		}
 	}
 }
