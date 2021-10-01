@@ -13,9 +13,10 @@ import (
 const DEBUG = false
 
 type LocalVariable struct {
-	Name   string
-	Type   types.Type
-	offset int
+	Name    string
+	Type    types.Type
+	IsLocal bool
+	offset  int
 }
 
 func (n *LocalVariable) String() string {
@@ -481,7 +482,8 @@ func (n *BlockStmt) String() string {
 /* Program */
 
 type ProgramNode struct {
-	FuncDefs []*FuncDefNode
+	FuncDefs    []*FuncDefNode
+	GlobalStmts []*DeclarationStmt
 }
 
 func (n *ProgramNode) Token() *token.Token {
@@ -494,6 +496,9 @@ func (n *ProgramNode) Token() *token.Token {
 
 func (n *ProgramNode) String() string {
 	ss := []string{}
+	for _, stmt := range n.GlobalStmts {
+		ss = append(ss, stmt.String())
+	}
 	for _, stmt := range n.FuncDefs {
 		ss = append(ss, stmt.String())
 	}
@@ -510,6 +515,7 @@ type FuncDefNode struct {
 	StackSize int
 	Args      *FuncDefArgs
 	offsetCnt int
+	locals    map[string]*LocalVariable
 	token     *token.Token
 }
 
@@ -541,7 +547,8 @@ func (n *FuncDefNode) PrepareStackSize() {
 }
 
 /*
-program     = funcdef funcdef*
+program     = (funcdef | global)*
+global      = declaration
 funcdef     = declspec declarator funcargs blockStmt
 funcargs    = "(" declspec declarator ("," declspec declarator)* ")" | "(" ")"
 blockstmt   = "{" stmt* "}"
@@ -577,14 +584,14 @@ type Parser struct {
 	tzer      *token.Tokenizer
 	head, cur *token.Token
 	curFn     *FuncDefNode
-	locals    map[string]*LocalVariable
+	globals   map[string]*LocalVariable
 	funcdefs  map[string]*FuncDefNode
 }
 
 func New(tzer *token.Tokenizer) *Parser {
 	parser := &Parser{
 		tzer:     tzer,
-		locals:   map[string]*LocalVariable{},
+		globals:  map[string]*LocalVariable{},
 		funcdefs: map[string]*FuncDefNode{},
 	}
 	parser.head = parser.tzer.Tokenize()
@@ -625,19 +632,63 @@ func (p *Parser) nextTkn() {
 	}
 }
 
+func (p *Parser) backTo(to *token.Token) {
+	if p.cur != to {
+		p.cur = p.cur.Prev
+	}
+}
+
+func (p *Parser) getDef(name string) *LocalVariable {
+	if v, ok := p.curFn.locals[name]; ok {
+		return v
+	}
+
+	if v, ok := p.globals[name]; ok {
+		return v
+	}
+
+	err("Ident %s not defined.\n", name)
+	os.Exit(1)
+	return nil
+}
+
 func (p *Parser) program() *ProgramNode {
 	node := &ProgramNode{}
 	node.FuncDefs = []*FuncDefNode{}
+	node.GlobalStmts = []*DeclarationStmt{}
 	for p.cur.Kind != token.EOF {
-		node.FuncDefs = append(node.FuncDefs, p.funcdef())
+		n := p.global()
+		switch n := n.(type) {
+		case *DeclarationStmt:
+			node.GlobalStmts = append(node.GlobalStmts, n)
+		case *FuncDefNode:
+			node.FuncDefs = append(node.FuncDefs, n)
+		default:
+			p.Error(n.Token(), "Unexpected top level token: %s", n)
+		}
+
 	}
 	return node
 }
 
-func (p *Parser) funcdef() *FuncDefNode {
-	p.curFn = &FuncDefNode{token: p.cur, Offsets: map[string]int{}}
+func (p *Parser) global() Node {
+	start := p.cur
 	baseTy := p.declspec()
 	ty, identTkn := p.declarator(baseTy)
+	if p.cur.Kind == token.LPAREN {
+		return p.funcdef(ty, identTkn)
+	}
+
+	p.backTo(start)
+	return p.declarationStmt(false)
+}
+
+func (p *Parser) funcdef(ty types.Type, identTkn *token.Token) *FuncDefNode {
+	p.curFn = &FuncDefNode{
+		token:   p.cur,
+		Offsets: map[string]int{},
+		locals:  map[string]*LocalVariable{},
+	}
 	p.curFn.Type = ty
 	p.curFn.Name = identTkn.Str
 	p.curFn.Args = p.funcdefargs()
@@ -662,36 +713,27 @@ func (p *Parser) funcdefargs() *FuncDefArgs {
 
 	basety1 := p.declspec()
 	ty1, identTok := p.declarator(basety1)
-	arg1 := &LocalVariable{Name: identTok.Str, Type: ty1}
+	arg1 := &LocalVariable{Name: identTok.Str, Type: ty1, IsLocal: true}
 	args.LV.Locals = append(args.LV.Locals, arg1)
 
 	for p.cur.Kind == token.COMMA {
 		p.nextTkn()
 		basety := p.declspec()
 		ty, identTok := p.declarator(basety)
-		arg := &LocalVariable{Name: identTok.Str, Type: ty}
+		arg := &LocalVariable{Name: identTok.Str, Type: ty, IsLocal: true}
 		args.LV.Locals = append(args.LV.Locals, arg)
 	}
 
 	p.expect(p.cur, token.RPAREN)
 	p.nextTkn()
 
-	for _, local := range args.LV.Locals {
-		if _, exists := p.curFn.Offsets[local.Name]; exists {
-			p.Error(p.cur, "Declared already: %s", p.cur.Str)
-		}
-
-		p.curFn.offsetCnt += local.Type.StackSize()
-		p.curFn.Offsets[local.Name] = p.curFn.offsetCnt
-		p.locals[local.Name] = local
-	}
-
+	p.prepareLocals(args.LV.Locals)
 	return args
 }
 
 func (p *Parser) stmt() Stmt {
 	if p.cur.Kind == token.TYPE {
-		return p.declarationStmt()
+		return p.declarationStmt(true)
 	}
 
 	if p.cur.Kind == token.LBRACE {
@@ -760,7 +802,7 @@ func (p *Parser) declarator(ty types.Type) (types.Type, *token.Token) {
 	return ty, identTok
 }
 
-func (p *Parser) declarationStmt() *StmtListNode {
+func (p *Parser) declarationStmt(isLocal bool) *StmtListNode {
 	debug("declarationStmt")
 	initTok := p.cur
 	baseTy := p.declspec() // "int"
@@ -776,7 +818,7 @@ func (p *Parser) declarationStmt() *StmtListNode {
 
 		ty, identTok := p.declarator(baseTy) // "**a"
 
-		local := &LocalVariable{Name: identTok.Str, Type: ty}
+		local := &LocalVariable{Name: identTok.Str, Type: ty, IsLocal: isLocal}
 		locals = append(locals, local)
 
 		if p.cur.Kind != token.ASSIGN {
@@ -784,16 +826,7 @@ func (p *Parser) declarationStmt() *StmtListNode {
 		}
 
 		p.nextTkn() // "="
-
-		for _, local := range locals {
-			if _, exists := p.curFn.Offsets[local.Name]; exists {
-				p.tzer.Error(p.cur, "Declared already: %s", p.cur.Str)
-			}
-
-			p.curFn.offsetCnt += local.Type.StackSize()
-			p.curFn.Offsets[local.Name] = p.curFn.offsetCnt
-			p.locals[local.Name] = local
-		}
+		p.prepareLocals(locals)
 
 		left := &LocalVariableNode{Locals: locals, token: initTok}
 		right := p.expr()
@@ -803,15 +836,7 @@ func (p *Parser) declarationStmt() *StmtListNode {
 	}
 
 	if len(locals) > 0 {
-		for _, local := range locals {
-			if _, exists := p.curFn.Offsets[local.Name]; exists {
-				p.tzer.Error(p.cur, "Declared already: %s", p.cur.Str)
-			}
-
-			p.curFn.offsetCnt += local.Type.StackSize()
-			p.curFn.Offsets[local.Name] = p.curFn.offsetCnt
-			p.locals[local.Name] = local
-		}
+		p.prepareLocals(locals)
 
 		left := &LocalVariableNode{Locals: locals, token: initTok}
 		declStmt := &DeclarationStmt{LV: left, Exp: nil, Op: "=", token: initTok}
@@ -852,7 +877,7 @@ func (p *Parser) forStmt() *ForStmt {
 
 	if p.cur.Kind != token.SEMICOLLON {
 		if p.cur.Kind == token.TYPE {
-			node.Init = p.declarationStmt()
+			node.Init = p.declarationStmt(true)
 		} else {
 			node.Init = p.expr()
 			p.expect(p.cur, token.SEMICOLLON)
@@ -952,9 +977,7 @@ func (p *Parser) assign() Exp {
 
 		// TODO: duplicate left value check
 		if ident, ok := infix.Left.(*IdentExp); ok {
-			if _, exists := p.curFn.Offsets[ident.Name]; !exists {
-				p.tzer.Error(ident.token, "Variable not found.")
-			}
+			_ = p.getDef(ident.Name)
 		}
 	}
 
@@ -1092,11 +1115,7 @@ func (p *Parser) primary() Exp {
 			index := p.expr()
 			p.expect(p.cur, token.RBRACKET)
 			p.nextTkn() // ]
-
-			_, ok := p.locals[ident.Name]
-			if !ok {
-				p.Error(ident.token, "Array %s not defined.", ident.Name)
-			}
+			_ = p.getDef(ident.Name)
 			return &IndexExp{
 				Ident: ident,
 				Index: index,
@@ -1142,12 +1161,7 @@ func (p *Parser) ident() Exp {
 	if p.cur.Kind == token.LPAREN {
 		return p.funccall(tkn)
 	} else {
-		// FIXME: 関数ごとのローカルを観なきゃダメじゃない？
-		local, ok := p.locals[tkn.Str]
-		if !ok {
-			err("Ident %s not defined.\n", tkn.Str)
-			os.Exit(1)
-		}
+		local := p.getDef(tkn.Str)
 		return &IdentExp{
 			Name: tkn.Str, token: tkn, typ: local.Type,
 		}
@@ -1208,6 +1222,26 @@ func Scale(infix *InfixExp) *InfixExp {
 	mul := &InfixExp{Left: right, Right: num8, Op: "*"}
 	infix.Right = mul
 	return infix
+}
+
+func (p *Parser) prepareLocals(locals []*LocalVariable) {
+	for _, local := range locals {
+		if local.IsLocal {
+			if _, exists := p.curFn.Offsets[local.Name]; exists {
+				p.tzer.Error(p.cur, "Local variable already declared: %s", p.cur.Str)
+			}
+
+			p.curFn.offsetCnt += local.Type.StackSize()
+			p.curFn.Offsets[local.Name] = p.curFn.offsetCnt
+			p.curFn.locals[local.Name] = local
+		} else {
+			if _, exists := p.globals[local.Name]; exists {
+				p.tzer.Error(p.cur, "Global variable already declared: %s", p.cur.Str)
+			}
+
+			p.globals[local.Name] = local
+		}
+	}
 }
 
 func (p *Parser) expect(token *token.Token, kinds ...token.TokenKind) {

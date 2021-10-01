@@ -49,6 +49,7 @@ type TokenKind string
 type Token struct {
 	Kind TokenKind
 	Next *Token
+	Prev *Token
 	Val  int
 	Str  string
 	Col  int
@@ -56,6 +57,7 @@ type Token struct {
 
 func newToken(kind TokenKind, curToken *Token, val int, str string, col int) *Token {
 	token := Token{Kind: kind, Val: val, Str: str, Col: col}
+	token.Prev = curToken
 	curToken.Next = &token
 	return &token
 }
@@ -114,7 +116,7 @@ func (t *Tokenizer) curCh() rune {
 func (t *Tokenizer) Tokenize() *Token {
 	t.col = skip(t.code, 0)
 
-	head := &Token{START, nil, 0, "", 0}
+	head := &Token{START, nil, nil, 0, "", 0}
 	cur := head
 
 	for {

@@ -1,5 +1,5 @@
-int z(int a, int b, int c, int d, int e, int f, int g) {
-  return a + b + c + d + e + f + g;
+int f(int a, int b, int c) {
+  return a + b + c;
 }
 
-int main() { return z(1, 1, 1, 1, 1, 1, 1); }
+int main() { return f(1, 2, 3); }

@@ -334,12 +334,15 @@ func (g *Generator) genLbl() string {
 
 func (g *Generator) getOffset(fn *parser.FuncDefNode, node interface{}) int {
 	var name string
+	var ty types.Type
 
 	switch node := node.(type) {
 	case *parser.LocalVariable:
 		name = node.Name
+		ty = node.Type
 	case *parser.IdentExp:
 		name = node.Name
+		ty = node.Type()
 	default:
 		err("Invalid node: %T\n", node)
 		os.Exit(1)
@@ -347,7 +350,7 @@ func (g *Generator) getOffset(fn *parser.FuncDefNode, node interface{}) int {
 
 	offset, ok := fn.Offsets[name]
 	if !ok {
-		err("Invalid ident name: %s\n", name)
+		err("Invalid ident name: '%s' of type '%s'\n", name, ty)
 		os.Exit(1)
 	}
 
