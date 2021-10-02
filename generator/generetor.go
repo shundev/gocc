@@ -103,6 +103,8 @@ func (g *Generator) address(fn *parser.FuncDefNode, node interface{}) {
 
 func (g *Generator) global(node *parser.DeclarationStmt) {
 	for _, local := range node.LV.Locals {
+		g.writer.Globl(local.Name)
+		g.writer.Data()
 		g.writer.Label(local.Name)
 		// XXX: 今はすべて8-byte
 		if node.Exp == nil {
@@ -225,6 +227,7 @@ func (g *Generator) walk(node parser.Node) {
 	case *parser.FuncDefNode:
 		g.fns[ty.Name] = ty
 		g.currentFn = ty
+		g.writer.Globl(ty.Name)
 		g.writer.Label(ty.Name)
 		g.prolog()
 

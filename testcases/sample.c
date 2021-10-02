@@ -1,8 +1,8 @@
-int w = -10;
-int x = 5 * 10;
-int y = 10 / 2;
-int z = 1 + 2 + 3 + 4 + 5;
+int x = 5;
+int y = 10;
 
 int main() {
-  return 0;
+  x = 3;
+  y = 8;
+  return x + y;
 }

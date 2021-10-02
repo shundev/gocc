@@ -22,7 +22,7 @@ assert() {
   fi
 }
 
-assert 15 global2.c
+assert 11 global2.c
 assert 0 global1.c
 assert 2 array1.c
 assert 10 array2.c

@@ -29,6 +29,8 @@ type Writer interface {
 	Movzb(rad1, rad2 string)
 	Neg(rad1 string)
 	Ret()
+	Globl(label string)
+	Data()
 	Label(name string)
 	Text(text string)
 	Address(name string) string
@@ -41,7 +43,6 @@ type Intel struct {
 }
 
 const INTEL_HEADER = `.intel_syntax noprefix
-.globl main
 `
 
 func NewIntelWriter(out io.Writer) *Intel {
@@ -159,6 +160,14 @@ func (g *Intel) Ret() {
 func (g *Intel) Label(name string) {
 	s := fmt.Sprintf("%s:\n", name)
 	io.WriteString(g.buf, s)
+}
+
+func (g *Intel) Globl(label string) {
+	g.Text(fmt.Sprintf(".globl %s", label))
+}
+
+func (g *Intel) Data() {
+	g.Text(".data")
 }
 
 func (g *Intel) Text(text string) {

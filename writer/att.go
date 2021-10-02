@@ -12,7 +12,7 @@ type ATT struct {
 	buf *bytes.Buffer
 }
 
-const header = ".globl main\n"
+const header = ""
 
 func New(out io.Writer, intel bool) Writer {
 	if intel {
@@ -137,6 +137,14 @@ func (g *ATT) Ret() {
 func (g *ATT) Label(name string) {
 	s := fmt.Sprintf("%s:\n", name)
 	io.WriteString(g.buf, s)
+}
+
+func (g *ATT) Globl(label string) {
+	g.Text(fmt.Sprintf(".globl %s", label))
+}
+
+func (g *ATT) Data() {
+	g.Text(".data")
 }
 
 func (g *ATT) Text(text string) {
