@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"go9cc/ast"
 	"go9cc/token"
 	"testing"
 )
@@ -10,6 +11,10 @@ func TestParseInfix(t *testing.T) {
 		input string
 		want  string
 	}{
+		//{
+		//	"char a; int main() { char x = 1; return 0; }",
+		//	"char a; int main () { char x = 1; return 0; }",
+		//},
 		{
 			"int x; int* y; int main() { x = 10; return x; }",
 			"int x; int* y; int main () { (x = 10); return x; }",
@@ -157,7 +162,7 @@ func TestParseInfix(t *testing.T) {
 
 }
 
-func testNode(t *testing.T, i int, node Node, want string) {
+func testNode(t *testing.T, i int, node ast.Node, want string) {
 	if node == nil {
 		t.Fatalf("%d: Node is nil: want=%s", i, want)
 	}

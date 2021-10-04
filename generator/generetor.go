@@ -2,6 +2,7 @@ package generator
 
 import (
 	"fmt"
+	"go9cc/ast"
 	"go9cc/parser"
 	"go9cc/token"
 	"go9cc/types"
@@ -35,8 +36,8 @@ type Generator struct {
 	parser    *parser.Parser
 	writer    writer.Writer
 	lblCnt    int
-	currentFn *parser.FuncDefNode
-	fns       map[string]*parser.FuncDefNode
+	currentFn *ast.FuncDefNode
+	fns       map[string]*ast.FuncDefNode
 }
 
 func New(p *parser.Parser, out io.Writer) *Generator {
@@ -44,12 +45,12 @@ func New(p *parser.Parser, out io.Writer) *Generator {
 	gen := &Generator{
 		parser: p,
 		writer: writer,
-		fns:    map[string]*parser.FuncDefNode{},
+		fns:    map[string]*ast.FuncDefNode{},
 	}
 	return gen
 }
 
-func (g *Generator) globals() map[string]*parser.LocalVariable {
+func (g *Generator) globals() map[string]*ast.LocalVariable {
 	return g.parser.Globals
 }
 
@@ -67,23 +68,23 @@ func (g *Generator) Error(token *token.Token, msg string, args ...interface{}) {
 }
 
 // push corresponding address to the top of stack
-func (g *Generator) address(fn *parser.FuncDefNode, node interface{}) {
+func (g *Generator) address(fn *ast.FuncDefNode, node interface{}) {
 	debug("addr:\t%T", node)
 	switch ty := node.(type) {
-	case *parser.IndexExp:
+	case *ast.IndexExp:
 		offset, base := g.getOffset(fn, ty.Ident)
 		g.walk(ty.Index) // 結果の数値がRAXに乗る
 		src := g.writer.Index(base, RAX, ty.Type().StackSize())
 		g.writer.Lea(offset, src, RAX)
 		return
-	case *parser.UnaryExp:
+	case *ast.UnaryExp:
 		// Nested unary.
 		debug("Op:\t%s", ty.Op)
 		if ty.Op == "*" {
 			g.walk(ty.Right)
 			return
 		}
-	case *parser.LocalVariable:
+	case *ast.LocalVariable:
 		if ty.IsLocal {
 			offset, base := g.getOffset(fn, ty)
 			g.writer.Lea(offset, base, RAX)
@@ -91,7 +92,7 @@ func (g *Generator) address(fn *parser.FuncDefNode, node interface{}) {
 		} else {
 			g.writer.Lea(ty.Name, RIP, RAX)
 		}
-	case *parser.IdentExp:
+	case *ast.IdentExp:
 		offset, base := g.getOffset(fn, ty)
 		g.writer.Lea(offset, base, RAX)
 		return
@@ -101,7 +102,7 @@ func (g *Generator) address(fn *parser.FuncDefNode, node interface{}) {
 	os.Exit(1)
 }
 
-func (g *Generator) global(node *parser.DeclarationStmt) {
+func (g *Generator) global(node *ast.DeclarationStmt) {
 	for _, local := range node.LV.Locals {
 		g.writer.Globl(local.Name)
 		g.writer.Data()
@@ -110,7 +111,7 @@ func (g *Generator) global(node *parser.DeclarationStmt) {
 		if node.Exp == nil {
 			g.writer.Text(".quad 0")
 		} else {
-			e, ok := g.eval(node.Exp).(*parser.NumExp)
+			e, ok := g.eval(node.Exp).(*ast.NumExp)
 			if !ok {
 				g.Error(node.Exp.Token(), "Cannot evaluate rvalue of %s:", node.Exp)
 			}
@@ -120,30 +121,30 @@ func (g *Generator) global(node *parser.DeclarationStmt) {
 	}
 }
 
-func (g *Generator) walk(node parser.Node) {
+func (g *Generator) walk(node ast.Node) {
 	debug("walk:\t%T", node)
 	switch ty := node.(type) {
-	case *parser.ProgramNode:
+	case *ast.ProgramNode:
 		for _, stmt := range ty.GlobalStmts {
 			g.global(stmt)
 		}
 		for _, stmt := range ty.FuncDefs {
 			g.walk(stmt)
 		}
-	case *parser.ExpStmt:
+	case *ast.ExpStmt:
 		g.walk(ty.Exp)
-	case *parser.ReturnStmt:
+	case *ast.ReturnStmt:
 		g.walk(ty.Exp)
 		s := fmt.Sprintf(".L.return.%s", g.currentFn.Name)
 		g.writer.Jmp(s)
-	case *parser.StmtListNode:
+	case *ast.StmtListNode:
 		for _, stmt := range ty.Stmts {
 			g.walk(stmt)
 		}
-	case *parser.BlockStmt:
+	case *ast.BlockStmt:
 		g.walk(ty.Stmts)
-	case *parser.ForStmt:
-		stmt, _ := node.(*parser.ForStmt)
+	case *ast.ForStmt:
+		stmt, _ := node.(*ast.ForStmt)
 		lblBegin := g.genLbl()
 		lblEnd := g.genLbl()
 		if stmt.Init != nil {
@@ -161,8 +162,8 @@ func (g *Generator) walk(node parser.Node) {
 		}
 		g.writer.Jmp(lblBegin)
 		g.writer.Label(lblEnd)
-	case *parser.WhileStmt:
-		stmt, _ := node.(*parser.WhileStmt)
+	case *ast.WhileStmt:
+		stmt, _ := node.(*ast.WhileStmt)
 		lblBegin := g.genLbl()
 		lblEnd := g.genLbl()
 		g.writer.Label(lblBegin)
@@ -172,8 +173,8 @@ func (g *Generator) walk(node parser.Node) {
 		g.walk(stmt.Body)
 		g.writer.Jmp(lblBegin)
 		g.writer.Label(lblEnd)
-	case *parser.IfStmt:
-		stmt, _ := node.(*parser.IfStmt)
+	case *ast.IfStmt:
+		stmt, _ := node.(*ast.IfStmt)
 		lblElse := g.genLbl()
 		lblEnd := g.genLbl()
 		g.walk(stmt.Cond)
@@ -186,17 +187,17 @@ func (g *Generator) walk(node parser.Node) {
 			g.walk(stmt.ElseBody)
 		}
 		g.writer.Label(lblEnd)
-	case *parser.NumExp:
+	case *ast.NumExp:
 		val := fmt.Sprintf("%d", ty.Val)
 		g.writer.Mov(val, RAX)
-	case *parser.IndexExp:
+	case *ast.IndexExp:
 		g.address(g.currentFn, ty) // 配列のあるインデックスのアドレスがRAXに乗る
 		g.writer.Mov(g.writer.Address(RAX), RAX)
-	case *parser.IdentExp:
+	case *ast.IdentExp:
 		// 変数呼び出し
 		g.address(g.currentFn, ty)
 		g.writer.Mov(g.writer.Address(RAX), RAX)
-	case *parser.FuncCallExp:
+	case *ast.FuncCallExp:
 		// 関数呼び出し
 		defined := ty.Def != nil
 		if !defined {
@@ -224,7 +225,7 @@ func (g *Generator) walk(node parser.Node) {
 		g.writer.Mov("0", RAX)
 		// FIXME: need align before call?
 		g.writer.Call(ty.Name)
-	case *parser.FuncDefNode:
+	case *ast.FuncDefNode:
 		g.fns[ty.Name] = ty
 		g.currentFn = ty
 		g.writer.Globl(ty.Name)
@@ -252,7 +253,7 @@ func (g *Generator) walk(node parser.Node) {
 		g.walk(ty.Body)
 		g.writer.Label(fmt.Sprintf(".L.return.%s", ty.Name))
 		g.epilog()
-	case *parser.UnaryExp:
+	case *ast.UnaryExp:
 		debug("Op:\t%s", ty.Op)
 		switch ty.Op {
 		case "&":
@@ -269,7 +270,7 @@ func (g *Generator) walk(node parser.Node) {
 			size := reduceSizeof(ty)
 			g.writer.Mov(fmt.Sprintf("%d", size), RAX)
 		}
-	case *parser.DeclarationStmt:
+	case *ast.DeclarationStmt:
 		for _, local := range ty.LV.Locals {
 			if ty.Exp != nil {
 				g.address(g.currentFn, local)
@@ -280,7 +281,7 @@ func (g *Generator) walk(node parser.Node) {
 			}
 		}
 		// 戻り値はRAXに入っている
-	case *parser.InfixExp:
+	case *ast.InfixExp:
 		debug("Op:\t %s", ty.Op)
 		infix := ty
 		if infix.Op == "=" {
@@ -368,15 +369,15 @@ func (g *Generator) genLbl() string {
 	return s
 }
 
-func (g *Generator) getOffset(fn *parser.FuncDefNode, node interface{}) (string, string) {
+func (g *Generator) getOffset(fn *ast.FuncDefNode, node interface{}) (string, string) {
 	var name string
 	var ty types.Type
 
 	switch node := node.(type) {
-	case *parser.LocalVariable:
+	case *ast.LocalVariable:
 		name = node.Name
 		ty = node.Type
-	case *parser.IdentExp:
+	case *ast.IdentExp:
 		name = node.Name
 		ty = node.Type()
 	default:
@@ -402,13 +403,13 @@ func (g *Generator) getOffset(fn *parser.FuncDefNode, node interface{}) (string,
 }
 
 // FIXME: Dereference is not supported. i.e. int *x = &y
-func (g *Generator) eval(exp parser.Exp) parser.Exp {
+func (g *Generator) eval(exp ast.Exp) ast.Exp {
 	switch exp := exp.(type) {
-	case *parser.NumExp:
+	case *ast.NumExp:
 		return exp
-	case *parser.UnaryExp:
+	case *ast.UnaryExp:
 		right := g.eval(exp.Right)
-		r, ok := right.(*parser.NumExp)
+		r, ok := right.(*ast.NumExp)
 		if !ok {
 			g.Error(right.Token(), "Invalid right for unary exp: %s", right)
 		}
@@ -418,41 +419,41 @@ func (g *Generator) eval(exp parser.Exp) parser.Exp {
 		}
 
 		if exp.Op == "-" {
-			return &parser.NumExp{Val: -r.Val}
+			return &ast.NumExp{Val: -r.Val}
 		}
 
 		g.Error(exp.Token(), "Invalid operator for global rvalue unary right: %s", exp.Op)
-	case *parser.InfixExp:
+	case *ast.InfixExp:
 		left := g.eval(exp.Left)
 		right := g.eval(exp.Right)
-		l, ok := left.(*parser.NumExp)
+		l, ok := left.(*ast.NumExp)
 		if !ok {
 			g.Error(left.Token(), "Invalid left exp: %s", left)
 		}
 
-		r, ok := right.(*parser.NumExp)
+		r, ok := right.(*ast.NumExp)
 		if !ok {
 			g.Error(right.Token(), "Invalid right exp: %s", right)
 		}
 
 		if exp.Op == "+" {
 			val := l.Val + r.Val
-			return &parser.NumExp{Val: val}
+			return &ast.NumExp{Val: val}
 		}
 
 		if exp.Op == "-" {
 			val := l.Val - r.Val
-			return &parser.NumExp{Val: val}
+			return &ast.NumExp{Val: val}
 		}
 
 		if exp.Op == "*" {
 			val := l.Val * r.Val
-			return &parser.NumExp{Val: val}
+			return &ast.NumExp{Val: val}
 		}
 
 		if exp.Op == "/" {
 			val := l.Val / r.Val
-			return &parser.NumExp{Val: val}
+			return &ast.NumExp{Val: val}
 		}
 
 		g.Error(exp.Token(), "Invalid operator for global rvalue: %s", exp.Op)
@@ -462,7 +463,7 @@ func (g *Generator) eval(exp parser.Exp) parser.Exp {
 	return nil
 }
 
-func reduceSizeof(unary *parser.UnaryExp) int {
+func reduceSizeof(unary *ast.UnaryExp) int {
 	return unary.Right.Type().Size()
 }
 
