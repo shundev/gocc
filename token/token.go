@@ -205,7 +205,10 @@ func (t *Tokenizer) Tokenize() *Token {
 			cur = newToken(EOF, cur, 0, "", t.col)
 			return head.Next
 		default:
-			if newcol, ok := tryKeyword(t.code, t.col, "sizeof"); ok {
+			if newcol, ok := tryKeyword(t.code, t.col, "char"); ok {
+				cur = newToken(TYPE, cur, 0, "char", t.col)
+				t.col = newcol
+			} else if newcol, ok := tryKeyword(t.code, t.col, "sizeof"); ok {
 				cur = newToken(SIZEOF, cur, 0, "sizeof", t.col)
 				t.col = newcol
 			} else if newcol, ok := tryKeyword(t.code, t.col, "int"); ok {
