@@ -32,7 +32,7 @@ func (t *Int) Size() int {
 }
 
 func (t *Int) StackSize() int {
-	return 8
+	return t.Size()
 }
 
 type IntPointer struct {

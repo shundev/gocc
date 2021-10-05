@@ -76,21 +76,6 @@ func (p *Parser) Error(token *token.Token, msg string, args ...interface{}) {
 	p.tzer.Error(token, msg, args...)
 }
 
-func UnaryToInfix(unary *ast.UnaryExp) *ast.InfixExp {
-	right := unary.Right
-	left := &ast.NumExp{Val: 0}
-	infix := &ast.InfixExp{Left: left, Right: right, Op: unary.Op}
-	return infix
-}
-
-func Swap(infix *ast.InfixExp) *ast.InfixExp {
-	right := infix.Right
-	left := infix.Left
-	infix.Right = left
-	infix.Left = right
-	return infix
-}
-
 func (p *Parser) nextTkn() {
 	if p.cur.Kind != token.EOF {
 		p.cur = p.cur.Next
@@ -299,6 +284,10 @@ func (p *Parser) declarationStmt(isLocal bool) *ast.StmtListNode {
 		left.Locals = locals
 		right := p.expr()
 		declStmt := ast.NewDeclarationStmt(left, right, "=", initTok)
+		err := declStmt.CheckTypeError()
+		if err != nil {
+			p.Error(declStmt.Token(), err.Error())
+		}
 		stmts = append(stmts, declStmt)
 		locals = []*ast.LocalVariable{}
 	}
@@ -309,6 +298,10 @@ func (p *Parser) declarationStmt(isLocal bool) *ast.StmtListNode {
 		left := ast.NewLocalVariableNode(initTok)
 		left.Locals = locals
 		declStmt := ast.NewDeclarationStmt(left, nil, "=", initTok)
+		err := declStmt.CheckTypeError()
+		if err != nil {
+			p.Error(declStmt.Token(), err.Error())
+		}
 		stmts = append(stmts, declStmt)
 	}
 
@@ -434,6 +427,11 @@ func (p *Parser) assign() ast.Exp {
 		if ident, ok := infix.Left.(*ast.IdentExp); ok {
 			_ = p.getDef(ident.Name)
 		}
+
+		err := infix.CheckTypeError()
+		if err != nil {
+			p.Error(node.Token(), err.Error())
+		}
 	}
 
 	return node
@@ -448,6 +446,10 @@ func (p *Parser) eq() ast.Exp {
 		p.nextTkn()
 		infix.Right = p.lg()
 		node = infix
+		err := infix.CheckTypeError()
+		if err != nil {
+			p.Error(node.Token(), err.Error())
+		}
 	}
 
 	return node
@@ -469,6 +471,10 @@ func (p *Parser) lg() ast.Exp {
 		p.nextTkn()
 		infix.Right = p.add()
 		node = infix
+		err := infix.CheckTypeError()
+		if err != nil {
+			p.Error(node.Token(), err.Error())
+		}
 	}
 
 	return node
@@ -487,6 +493,10 @@ func (p *Parser) add() ast.Exp {
 			p.nextTkn()
 			infix.Right = p.mul()
 			node = infix
+			err := infix.CheckTypeError()
+			if err != nil {
+				p.Error(node.Token(), err.Error())
+			}
 		default:
 			// never go here
 			p.tzer.Error(p.cur, "Invalid token: %s", p.cur.Str)
@@ -509,6 +519,10 @@ func (p *Parser) mul() ast.Exp {
 			p.nextTkn()
 			infix.Right = p.unary()
 			node = infix
+			err := infix.CheckTypeError()
+			if err != nil {
+				p.Error(node.Token(), err.Error())
+			}
 		default:
 			// never go here
 			p.tzer.Error(p.cur, "Invalid token: %s", p.cur.Str)
@@ -639,21 +653,6 @@ func (p *Parser) funccallparams() *ast.FuncCallParams {
 	return params
 }
 
-func Scale(infix *ast.InfixExp) *ast.InfixExp {
-	debug("Scale")
-	right, ok := infix.Right.(*ast.NumExp)
-	if !ok {
-		fmt.Fprintln(os.Stderr, "Failed to scale.")
-		os.Exit(1)
-	}
-
-	// 今は本とは逆のローカル変数順にしているため逆方向
-	num8 := &ast.NumExp{Val: -8}
-	mul := &ast.InfixExp{Left: right, Right: num8, Op: "*"}
-	infix.Right = mul
-	return infix
-}
-
 func (p *Parser) prepareLocals(locals []*ast.LocalVariable) {
 	for _, local := range locals {
 		if local.IsLocal {
@@ -685,5 +684,5 @@ func debug(s string, args ...interface{}) {
 }
 
 func err(s string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, s+"\n")
+	fmt.Fprintf(os.Stderr, s+"\n", args...)
 }

@@ -1,8 +1,10 @@
-int x = 5;
-int y = 10;
+int foo(int *x) {
+  *x = 10;
+  return 0;
+}
 
 int main() {
-  x = 3;
-  y = 8;
-  return x + y;
+  int x = 5;
+  foo(&x);
+  return x;
 }

@@ -14,7 +14,7 @@ type Writer interface {
 	Sub(string, string)
 	Mul(string, string)
 	Div(string)
-	Lea(string, string, string)
+	Lea(offset, rad1, rad2 string)
 	Push(string)
 	Pop(string)
 	Sete(string)

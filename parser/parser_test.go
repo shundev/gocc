@@ -32,8 +32,8 @@ func TestParseInfix(t *testing.T) {
 			"int main () { int a; return a; }",
 		},
 		{
-			"int main () { int *a = 0, **b, ***c; }",
-			"int main () { int* a = 0; int** b, int*** c; }",
+			"int main () { int *a, **b, ***c; }",
+			"int main () { int* a, int** b, int*** c; }",
 		},
 		{
 			"int main() {-1 + (10 * -2) - 5 / 100;}",

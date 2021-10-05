@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	DEBUG        = true
-	INTEL_SYNTAX = true
+	DEBUG        = false
+	INTEL_SYNTAX = false
 )
 
 const (
@@ -26,11 +26,29 @@ const (
 	RSI = "rsi" // 2nd param
 	RDX = "rdx" // 3rd param
 	RCX = "rcx" // 4th param
-	R8D = "r8"  // 5th param
-	R9D = "r9"  // 6th param
+	R8  = "r8"  // 5th param
+	R9  = "r9"  // 6th param
+
+	EAX = "eax"
+	EDI = "edi" // 1st param
+	ESI = "esi" // 2nd param
+	EDX = "edx" // 3rd param
+	ECX = "ecx" // 4th param
+	R8D = "r8d" // 5th param
+	R9D = "r9d" // 6th param
 )
 
-var FUNCCALLREGS = []string{RDI, RSI, RDX, RCX, R8D, R9D}
+var FUNCCALLREGS = []string{RDI, RSI, RDX, RCX, R8, R9}
+
+var DWORD = map[string]string{
+	RAX: EAX,
+	RDI: EDI,
+	RSI: ESI,
+	RDX: EDX,
+	RCX: ECX,
+	R8:  R8D,
+	R9:  R9D,
+}
 
 type Generator struct {
 	parser    *parser.Parser
@@ -189,14 +207,14 @@ func (g *Generator) walk(node ast.Node) {
 		g.writer.Label(lblEnd)
 	case *ast.NumExp:
 		val := fmt.Sprintf("%d", ty.Val)
-		g.writer.Mov(val, RAX)
+		g.writer.Mov(val, getReg(RAX, ty.Type()))
 	case *ast.IndexExp:
 		g.address(g.currentFn, ty) // 配列のあるインデックスのアドレスがRAXに乗る
-		g.writer.Mov(g.writer.Address(RAX), RAX)
+		g.writer.Mov(g.writer.Address(RAX), getReg(RAX, ty.Type()))
 	case *ast.IdentExp:
 		// 変数呼び出し
 		g.address(g.currentFn, ty)
-		g.writer.Mov(g.writer.Address(RAX), RAX)
+		g.writer.Mov(g.writer.Address(RAX), getReg(RAX, ty.Type()))
 	case *ast.FuncCallExp:
 		// 関数呼び出し
 		defined := ty.Def != nil
@@ -219,7 +237,7 @@ func (g *Generator) walk(node ast.Node) {
 			if i >= len(FUNCCALLREGS) {
 				g.writer.Push(RAX)
 			} else {
-				g.writer.Mov(RAX, FUNCCALLREGS[i])
+				g.writer.Mov(getReg(RAX, param.Type()), getReg(FUNCCALLREGS[i], param.Type()))
 			}
 		}
 		g.writer.Mov("0", RAX)
@@ -243,10 +261,10 @@ func (g *Generator) walk(node ast.Node) {
 			if i >= len(FUNCCALLREGS) {
 				g.writer.Pop(RDI)
 				g.writer.Lea(offset, RBP, RAX)
-				g.writer.Mov(RDI, g.writer.Address(RAX))
+				g.writer.Mov(getReg(RDI, local.Type), g.writer.Address(RAX))
 			} else {
 				g.writer.Lea(offset, base, RAX)
-				g.writer.Mov(FUNCCALLREGS[i], g.writer.Address(RAX))
+				g.writer.Mov(getReg(FUNCCALLREGS[i], local.Type), g.writer.Address(RAX))
 			}
 		}
 
@@ -260,7 +278,7 @@ func (g *Generator) walk(node ast.Node) {
 			g.address(g.currentFn, ty.Right) // RAXに目標のアドレスが載る
 		case "*":
 			g.walk(ty.Right) // RAXに目標のアドレスが載る
-			g.writer.Mov(g.writer.Address(RAX), RAX)
+			g.writer.Mov(g.writer.Address(RAX), getReg(RAX, ty.Right.Type()))
 		case "+":
 			// do nothing ( +5 -> 5)
 		case "-":
@@ -268,7 +286,7 @@ func (g *Generator) walk(node ast.Node) {
 			g.writer.Neg(RAX)
 		case "sizeof":
 			size := reduceSizeof(ty)
-			g.writer.Mov(fmt.Sprintf("%d", size), RAX)
+			g.writer.Mov(fmt.Sprintf("%d", size), EAX)
 		}
 	case *ast.DeclarationStmt:
 		for _, local := range ty.LV.Locals {
@@ -277,30 +295,21 @@ func (g *Generator) walk(node ast.Node) {
 				g.writer.Push(RAX) // 直近2つのRAXが必要な場合は前のRAXをスタックに退避
 				g.walk(ty.Exp)
 				g.writer.Pop(RDI)
-				g.writer.Mov(RAX, g.writer.Address(RDI))
+				g.writer.Mov(getReg(RAX, ty.Exp.Type()), g.writer.Address(RDI))
 			}
 		}
 		// 戻り値はRAXに入っている
 	case *ast.InfixExp:
 		debug("Op:\t %s", ty.Op)
 		infix := ty
+
 		if infix.Op == "=" {
 			g.address(g.currentFn, infix.Left)
 			g.writer.Push(RAX) // 直近2つのRAXが必要な場合は前のRAXをスタックに退避
 			g.walk(infix.Right)
 			g.writer.Pop(RDI)
-			g.writer.Mov(RAX, g.writer.Address(RDI))
+			g.writer.Mov(getReg(RAX, infix.Right.Type()), g.writer.Address(RDI))
 			return
-		}
-
-		// ポインタ演算はタイプのサイズによってスケールする
-		if infix.Op == "+" || infix.Op == "-" {
-			switch infix.Left.Type().(type) {
-			case *types.IntPointer:
-				infix = parser.Scale(infix)
-			case *types.Array:
-				infix = parser.Scale(infix)
-			}
 		}
 
 		g.walk(infix.Right) // 先に計算した方がRDIに入るから右辺を先にしないと-の時問題
@@ -310,8 +319,32 @@ func (g *Generator) walk(node ast.Node) {
 
 		switch infix.Op {
 		case "+":
+			switch leftTy := infix.Left.Type().(type) {
+			case *types.Array:
+				// RDIにrightの数値の計算結果が入っている
+				unit := leftTy.Base.StackSize()
+				g.writer.Mul(fmt.Sprint(unit), RDI)
+				g.writer.Neg(RDI)
+			case *types.IntPointer:
+				// RDIにrightの数値の計算結果が入っている
+				unit := leftTy.Base.StackSize()
+				g.writer.Mul(fmt.Sprint(unit), RDI)
+				g.writer.Neg(RDI)
+			}
 			g.writer.Add(RDI, RAX)
 		case "-":
+			switch leftTy := infix.Left.Type().(type) {
+			case *types.Array:
+				// RDIにrightの数値の計算結果が入っている
+				unit := leftTy.Base.StackSize()
+				g.writer.Mul(fmt.Sprint(unit), RDI)
+				g.writer.Neg(RDI)
+			case *types.IntPointer:
+				// RDIにrightの数値の計算結果が入っている
+				unit := leftTy.Base.StackSize()
+				g.writer.Mul(fmt.Sprint(unit), RDI)
+				g.writer.Neg(RDI)
+			}
 			g.writer.Sub(RDI, RAX) // 右辺をRDIに入れているから
 		case "*":
 			g.writer.Mul(RDI, RAX)
@@ -475,4 +508,25 @@ func debug(s string, args ...interface{}) {
 
 func err(s string, args ...interface{}) {
 	fmt.Fprintf(os.Stderr, s+"\n", args...)
+}
+
+func getReg(reg string, ty types.Type) string {
+	size := ty.StackSize()
+	switch size {
+	case 4:
+		r, ok := DWORD[reg]
+		if !ok {
+			goto ERROR
+		}
+		return r
+	case 8:
+		return reg
+	default:
+		goto ERROR
+	}
+
+ERROR:
+	err("Invalid size %d for %s", size, reg)
+	os.Exit(1)
+	return ""
 }

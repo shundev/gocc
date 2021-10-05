@@ -1,6 +1,6 @@
 all: test
 
-main: main.go token/*.go parser/*.go generator/*.go repl/*.go writer/*.go
+main: main.go token/*.go parser/*.go generator/*.go repl/*.go writer/*.go types/*.go ast/*.go
 	go build main.go
 
 build: main

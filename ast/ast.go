@@ -36,6 +36,14 @@ type Exp interface {
 	Type() types.Type
 }
 
+type TypeError struct {
+	msg string
+}
+
+func (t *TypeError) Error() string {
+	return t.msg
+}
+
 /* Stmt List Stmt */
 
 type StmtListNode struct {
@@ -175,6 +183,29 @@ func (n *InfixExp) Type() types.Type {
 	return n.Right.Type()
 }
 
+func (n *InfixExp) CheckTypeError() error {
+	if n.Op == "=" {
+		return nil
+	}
+
+	ret := &TypeError{}
+	_, ok := n.Right.Type().(*types.Int)
+	if !ok {
+		ret.msg = fmt.Sprintf("Rvalue of arithmetic must be int, but got %T in exp %s", n.Right.Type(), n)
+		return ret
+	}
+
+	if n.Op == "*" || n.Op == "/" {
+		_, ok := n.Left.Type().(*types.Int)
+		if !ok {
+			ret.msg = fmt.Sprintf("Pointer cannot be multiplied nor divided: %s", n)
+			return ret
+		}
+	}
+
+	return nil
+}
+
 /* Declaration */
 
 type DeclarationStmt struct {
@@ -203,6 +234,22 @@ func (n *DeclarationStmt) String() string {
 	}
 	out.WriteString(";")
 	return out.String()
+}
+
+func (n *DeclarationStmt) CheckTypeError() error {
+	if n.Exp == nil {
+		return nil
+	}
+
+	ret := &TypeError{}
+	for _, local := range n.LV.Locals {
+		if n.Exp.Type().String() != local.Type.String() {
+			ret.msg = fmt.Sprintf("Type mismatch: %s", local)
+			return ret
+		}
+	}
+
+	return nil
 }
 
 /* Unary */
@@ -368,6 +415,7 @@ func NewFuncCallExp(name string, params *FuncCallParams, token *token.Token, def
 	if params == nil {
 		params = NewFuncCallParams(nil)
 	}
+
 	node := &FuncCallExp{
 		Name:   name,
 		Params: params,
