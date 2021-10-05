@@ -13,7 +13,7 @@ import (
 
 const (
 	DEBUG        = false
-	INTEL_SYNTAX = false
+	INTEL_SYNTAX = true
 )
 
 const (
@@ -21,7 +21,6 @@ const (
 	RAX = "rax"
 	RBP = "rbp" // base pointer
 	RSP = "rsp" // stack pointer
-	AL  = "al"
 	RDI = "rdi" // 1st param
 	RSI = "rsi" // 2nd param
 	RDX = "rdx" // 3rd param
@@ -36,6 +35,14 @@ const (
 	ECX = "ecx" // 4th param
 	R8D = "r8d" // 5th param
 	R9D = "r9d" // 6th param
+
+	AL  = "al"
+	DIL = "dil"
+	SIL = "sil"
+	DL  = "dl"
+	CL  = "cl"
+	R8B = "r8b"
+	R9B = "r9b"
 )
 
 var FUNCCALLREGS = []string{RDI, RSI, RDX, RCX, R8, R9}
@@ -48,6 +55,16 @@ var DWORD = map[string]string{
 	RCX: ECX,
 	R8:  R8D,
 	R9:  R9D,
+}
+
+var BYTE = map[string]string{
+	RAX: AL,
+	RDI: DIL,
+	RSI: SIL,
+	RDX: DL,
+	RCX: CL,
+	R8:  R8B,
+	R9:  R9B,
 }
 
 type Generator struct {
@@ -210,11 +227,21 @@ func (g *Generator) walk(node ast.Node) {
 		g.writer.Mov(val, getReg(RAX, ty.Type()))
 	case *ast.IndexExp:
 		g.address(g.currentFn, ty) // 配列のあるインデックスのアドレスがRAXに乗る
-		g.writer.Mov(g.writer.Address(RAX), getReg(RAX, ty.Type()))
+
+		if ty.Type() == types.GetChar() {
+			g.writer.Movsx("BYTE PTR "+g.writer.Address(RAX), EAX)
+		} else {
+			g.writer.Mov(g.writer.Address(RAX), getReg(RAX, ty.Type()))
+		}
 	case *ast.IdentExp:
 		// 変数呼び出し
 		g.address(g.currentFn, ty)
-		g.writer.Mov(g.writer.Address(RAX), getReg(RAX, ty.Type()))
+
+		if ty.Type() == types.GetChar() {
+			g.writer.Movsx("BYTE PTR "+g.writer.Address(RAX), EAX)
+		} else {
+			g.writer.Mov(g.writer.Address(RAX), getReg(RAX, ty.Type()))
+		}
 	case *ast.FuncCallExp:
 		// 関数呼び出し
 		defined := ty.Def != nil
@@ -225,11 +252,12 @@ func (g *Generator) walk(node ast.Node) {
 		for i, param := range ty.Params.Exps {
 			if defined {
 				arg := ty.Def.Args.LV.Locals[i]
-				if arg.Type.String() != param.Type().String() {
+				if !arg.Type.CanAssign(param.Type()) {
 					g.Error(
 						param.Token(),
 						"Param types do not match for %s. Expected %s, but got %s.",
-						arg.Name, arg.Type.String(), param.Type().String())
+						arg.Name, arg.Type.String(), param.Type().String(),
+					)
 				}
 			}
 
@@ -295,7 +323,7 @@ func (g *Generator) walk(node ast.Node) {
 				g.writer.Push(RAX) // 直近2つのRAXが必要な場合は前のRAXをスタックに退避
 				g.walk(ty.Exp)
 				g.writer.Pop(RDI)
-				g.writer.Mov(getReg(RAX, ty.Exp.Type()), g.writer.Address(RDI))
+				g.writer.Mov(getReg(RAX, local.Type), g.writer.Address(RDI))
 			}
 		}
 		// 戻り値はRAXに入っている
@@ -513,6 +541,12 @@ func err(s string, args ...interface{}) {
 func getReg(reg string, ty types.Type) string {
 	size := ty.StackSize()
 	switch size {
+	case 1:
+		r, ok := BYTE[reg]
+		if !ok {
+			goto ERROR
+		}
+		return r
 	case 4:
 		r, ok := DWORD[reg]
 		if !ok {

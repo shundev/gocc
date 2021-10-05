@@ -120,6 +120,11 @@ func (g *ATT) Movzb(rad1, rad2 string) {
 	io.WriteString(g.buf, s)
 }
 
+func (g *ATT) Movsx(rad1, rad2 string) {
+	s := fmt.Sprintf("  movsx %s, %%%s\n", prefixed(rad1), rad2)
+	io.WriteString(g.buf, s)
+}
+
 func (g *ATT) Lea(offset, rad1, rad2 string) {
 	s := fmt.Sprintf("  lea %s(%%%s), %%%s\n", offset, rad1, rad2)
 	io.WriteString(g.buf, s)

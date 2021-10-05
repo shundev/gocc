@@ -11,13 +11,44 @@ const (
 )
 
 var (
-	int_ = &Int{}
+	int_  = &Int{}
+	char_ = &Char{}
 )
 
 type Type interface {
 	String() string
 	Size() int
 	StackSize() int
+	CanAssign(right Type) bool
+	CanAdd(right Type) bool
+	CanMul(right Type) bool
+}
+
+type Char struct {
+}
+
+func (t *Char) String() string {
+	return "char"
+}
+
+func (t *Char) Size() int {
+	return 1
+}
+
+func (t *Char) StackSize() int {
+	return t.Size()
+}
+
+func (t *Char) CanAssign(right Type) bool {
+	return right == int_ || right == char_
+}
+
+func (t *Char) CanAdd(right Type) bool {
+	return right == int_ || right == char_
+}
+
+func (t *Char) CanMul(right Type) bool {
+	return right == int_ || right == char_
 }
 
 type Int struct {
@@ -33,6 +64,18 @@ func (t *Int) Size() int {
 
 func (t *Int) StackSize() int {
 	return t.Size()
+}
+
+func (t *Int) CanAssign(right Type) bool {
+	return right == int_ || right == char_
+}
+
+func (t *Int) CanAdd(right Type) bool {
+	return right == int_ || right == char_
+}
+
+func (t *Int) CanMul(right Type) bool {
+	return right == int_ || right == char_
 }
 
 type IntPointer struct {
@@ -62,12 +105,22 @@ func (t *IntPointer) StackSize() int {
 	return t.Size()
 }
 
-func GetInt() Type {
-	return int_
+func (t *IntPointer) CanAssign(right Type) bool {
+	_, ok := right.(*IntPointer)
+	if ok {
+		return true
+	}
+
+	_, ok = right.(*Array)
+	return ok
 }
 
-func PointerTo(base Type) Type {
-	return &IntPointer{Base: base}
+func (t *IntPointer) CanAdd(right Type) bool {
+	return right == int_ || right == char_
+}
+
+func (t *IntPointer) CanMul(right Type) bool {
+	return false
 }
 
 type Array struct {
@@ -88,6 +141,32 @@ func (t *Array) Size() int {
 
 func (t *Array) StackSize() int {
 	return t.Base.StackSize() * t.Length
+}
+
+func (t *Array) CanAssign(right Type) bool {
+	return false
+}
+
+func (t *Array) CanAdd(right Type) bool {
+	return right == int_ || right == char_
+}
+
+func (t *Array) CanMul(right Type) bool {
+	return false
+}
+
+/* Factory */
+
+func GetInt() Type {
+	return int_
+}
+
+func GetChar() Type {
+	return char_
+}
+
+func PointerTo(base Type) Type {
+	return &IntPointer{Base: base}
 }
 
 func ArrayOf(base Type, length int) Type {

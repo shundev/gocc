@@ -22,6 +22,10 @@ assert() {
   fi
 }
 
+assert 34 char4.c
+assert 9 char3.c
+assert 7 char2.c
+assert 12 char1.c
 assert 11 global2.c
 assert 0 global1.c
 assert 2 array1.c

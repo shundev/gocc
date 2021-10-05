@@ -11,10 +11,10 @@ func TestParseInfix(t *testing.T) {
 		input string
 		want  string
 	}{
-		//{
-		//	"char a; int main() { char x = 1; return 0; }",
-		//	"char a; int main () { char x = 1; return 0; }",
-		//},
+		{
+			"char a; int main() { char x = 1; return 0; }",
+			"char a; int main () { char x = 1; return 0; }",
+		},
 		{
 			"int x; int* y; int main() { x = 10; return x; }",
 			"int x; int* y; int main () { (x = 10); return x; }",

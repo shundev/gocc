@@ -180,25 +180,29 @@ func (n *InfixExp) String() string {
 }
 
 func (n *InfixExp) Type() types.Type {
-	return n.Right.Type()
+	return n.Left.Type()
 }
 
 func (n *InfixExp) CheckTypeError() error {
-	if n.Op == "=" {
-		return nil
-	}
-
 	ret := &TypeError{}
-	_, ok := n.Right.Type().(*types.Int)
-	if !ok {
-		ret.msg = fmt.Sprintf("Rvalue of arithmetic must be int, but got %T in exp %s", n.Right.Type(), n)
-		return ret
-	}
-
-	if n.Op == "*" || n.Op == "/" {
-		_, ok := n.Left.Type().(*types.Int)
-		if !ok {
-			ret.msg = fmt.Sprintf("Pointer cannot be multiplied nor divided: %s", n)
+	switch n.Op {
+	case "=":
+		if !n.Left.Type().CanAssign(n.Right.Type()) {
+			ret.msg = fmt.Sprintf("Cannot assign: %s", n)
+			return ret
+		}
+	case "*":
+		fallthrough
+	case "/":
+		if !n.Left.Type().CanMul(n.Right.Type()) {
+			ret.msg = fmt.Sprintf("Cannot mul/div: %s", n)
+			return ret
+		}
+	case "+":
+		fallthrough
+	case "-":
+		if !n.Left.Type().CanAdd(n.Right.Type()) {
+			ret.msg = fmt.Sprintf("Cannot add/sub: %s", n)
 			return ret
 		}
 	}
@@ -243,7 +247,7 @@ func (n *DeclarationStmt) CheckTypeError() error {
 
 	ret := &TypeError{}
 	for _, local := range n.LV.Locals {
-		if n.Exp.Type().String() != local.Type.String() {
+		if !local.Type.CanAssign(n.Exp.Type()) {
 			ret.msg = fmt.Sprintf("Type mismatch: %s", local)
 			return ret
 		}

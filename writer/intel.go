@@ -27,6 +27,7 @@ type Writer interface {
 	Call(label string)
 	Cmp(rad1, rad2 string)
 	Movzb(rad1, rad2 string)
+	Movsx(rad1, rad2 string)
 	Neg(rad1 string)
 	Ret()
 	Globl(label string)
@@ -140,6 +141,11 @@ func (g *Intel) Cmp(rad1, rad2 string) {
 
 func (g *Intel) Movzb(rad1, rad2 string) {
 	s := fmt.Sprintf("  movzb %s, %s\n", rad2, rad1)
+	io.WriteString(g.buf, s)
+}
+
+func (g *Intel) Movsx(rad1, rad2 string) {
+	s := fmt.Sprintf("  movsx %s, %s\n", rad2, rad1)
 	io.WriteString(g.buf, s)
 }
 

@@ -218,8 +218,19 @@ func (p *Parser) stmt() ast.Stmt {
 func (p *Parser) declspec() types.Type {
 	debug("declspec")
 	p.expect(p.cur, token.TYPE)
+
+	tkn := p.cur
 	p.nextTkn()
-	return types.GetInt()
+
+	switch tkn.Str {
+	case "int":
+		return types.GetInt()
+	case "char":
+		return types.GetChar()
+	}
+
+	p.Error(tkn, "Invalid type %s", tkn.Str)
+	return nil
 }
 
 // declarator = "*"* ident ("[" num "]")?
