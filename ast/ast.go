@@ -122,6 +122,38 @@ func (n *FuncDefArgs) String() string {
 	return out.String()
 }
 
+/* string literal */
+
+type StringLiteralExp struct {
+	Val   string
+	token *token.Token
+	Label string
+}
+
+func NewStringLiteralExp(val string, token *token.Token, lbl string) *StringLiteralExp {
+	return &StringLiteralExp{
+		Val: val, token: token, Label: lbl,
+	}
+}
+
+func (n *StringLiteralExp) expNode() {}
+
+func (n *StringLiteralExp) Token() *token.Token {
+	return n.token
+}
+
+func (n *StringLiteralExp) String() string {
+	return fmt.Sprintf("\"%s\"", n.Val)
+}
+
+func (n *StringLiteralExp) Type() types.Type {
+	return types.ArrayOf(types.GetChar(), n.Length())
+}
+
+func (n *StringLiteralExp) Length() int {
+	return len(n.Val) + 1
+}
+
 /* Num */
 
 type NumExp struct {

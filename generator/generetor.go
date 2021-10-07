@@ -89,11 +89,18 @@ func (g *Generator) globals() map[string]*ast.LocalVariable {
 	return g.parser.Globals
 }
 
+func (g *Generator) strings() []*ast.StringLiteralExp {
+	return g.parser.Strings
+}
+
 func (g *Generator) Gen() {
 	g.writer.Header()
 
 	node := g.parser.Parse()
 
+	for _, str := range g.strings() {
+		g.strDef(str)
+	}
 	g.walk(node)
 	g.writer.Commit()
 }
@@ -154,6 +161,15 @@ func (g *Generator) global(node *ast.DeclarationStmt) {
 			g.writer.Text(s)
 		}
 	}
+}
+
+func (g *Generator) strDef(node *ast.StringLiteralExp) {
+	g.writer.Globl(node.Label)
+	g.writer.Data()
+	g.writer.Size(node.Length())
+	g.writer.Label(node.Label)
+	g.writer.String(node.Val)
+	g.writer.Text(".text")
 }
 
 func (g *Generator) walk(node ast.Node) {
@@ -242,6 +258,8 @@ func (g *Generator) walk(node ast.Node) {
 		} else {
 			g.writer.Mov(g.writer.Address(RAX), getReg(RAX, ty.Type()))
 		}
+	case *ast.StringLiteralExp:
+		g.writer.Lea(ty.Label, RIP, RAX)
 	case *ast.FuncCallExp:
 		// 関数呼び出し
 		defined := ty.Def != nil
@@ -268,7 +286,9 @@ func (g *Generator) walk(node ast.Node) {
 				g.writer.Mov(getReg(RAX, param.Type()), getReg(FUNCCALLREGS[i], param.Type()))
 			}
 		}
-		g.writer.Mov("0", RAX)
+
+		// 可変長引数を受け取る関数を呼ぶ前にALに浮動小数点数型の引数の数を渡す
+		g.writer.Mov("0", AL)
 		// FIXME: need align before call?
 		g.writer.Call(ty.Name)
 	case *ast.FuncDefNode:
@@ -539,28 +559,29 @@ func err(s string, args ...interface{}) {
 }
 
 func getReg(reg string, ty types.Type) string {
-	size := ty.StackSize()
-	switch size {
-	case 1:
+	switch ty.(type) {
+	case *types.Char:
 		r, ok := BYTE[reg]
 		if !ok {
 			goto ERROR
 		}
 		return r
-	case 4:
+	case *types.Int:
 		r, ok := DWORD[reg]
 		if !ok {
 			goto ERROR
 		}
 		return r
-	case 8:
+	case *types.Array:
+		return reg
+	case *types.IntPointer:
 		return reg
 	default:
 		goto ERROR
 	}
 
 ERROR:
-	err("Invalid size %d for %s", size, reg)
+	err("Invalid size %T for %s", ty, reg)
 	os.Exit(1)
 	return ""
 }

@@ -144,7 +144,20 @@ func (t *Array) StackSize() int {
 }
 
 func (t *Array) CanAssign(right Type) bool {
-	return false
+	arr, ok := right.(*Array)
+	if !ok {
+		return false
+	}
+
+	if arr.Length != t.Length {
+		return false
+	}
+
+	if arr.Base != t.Base {
+		return false
+	}
+
+	return true
 }
 
 func (t *Array) CanAdd(right Type) bool {

@@ -5,7 +5,7 @@ import (
 )
 
 func TestTokenizer(t *testing.T) {
-	input := "()10+-333333     *400/)==!=<><=>=a100=z かなカナ漢字 🍺;returna return*ABC_Z _H if else while do{}for&int**,sizeof[]char"
+	input := "()10+-333333     *400/)==!=<><=>=a100=z かなカナ漢字 🍺;returna return*ABC_Z _H if else while do{}for&int**,sizeof[]char\"hello\""
 	tzer := New(input)
 	cur := tzer.Tokenize()
 
@@ -95,7 +95,9 @@ func TestTokenizer(t *testing.T) {
 	cur = cur.Next
 	testToken(t, cur, TYPE, 0, "char", 109)
 	cur = cur.Next
-	testToken(t, cur, EOF, 0, "", 113)
+	testToken(t, cur, STRING, 0, "hello", 113)
+	cur = cur.Next
+	testToken(t, cur, EOF, 0, "", 120)
 }
 
 func testToken(t *testing.T, token *Token, kind TokenKind, val int, str string, col int) {

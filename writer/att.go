@@ -148,6 +148,14 @@ func (g *ATT) Globl(label string) {
 	g.Text(fmt.Sprintf(".globl %s", label))
 }
 
+func (g *ATT) String(value string) {
+	g.Text(fmt.Sprintf(".string \"%s\"", value))
+}
+
+func (g *ATT) Size(value int) {
+	g.Text(fmt.Sprintf(".size, %d", value))
+}
+
 func (g *ATT) Data() {
 	g.Text(".data")
 }

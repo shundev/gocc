@@ -29,6 +29,7 @@ const (
 	GTE        = ">="
 	AND        = "&"
 	NUM        = "NUM"
+	STRING     = "STRING"
 	IDENT      = "IDENT"
 	TYPE       = "TYPE"
 	SEMICOLLON = ";"
@@ -198,6 +199,11 @@ func (t *Tokenizer) Tokenize() *Token {
 		case ';':
 			cur = newToken(SEMICOLLON, cur, 0, ";", t.col)
 			t.col++
+		case '"':
+			t.col++
+			str, newIdx := readString(t.code, t.col)
+			cur = newToken(STRING, cur, 0, str, t.col-1)
+			t.col = newIdx
 		case '&':
 			cur = newToken(AND, cur, 0, "&", t.col)
 			t.col++
@@ -336,6 +342,27 @@ func readInteger(s []rune, start int) (int, int) {
 	}
 
 	return val, p
+}
+
+func readString(s []rune, start int) (string, int) {
+	p := skip(s, start)
+	var out bytes.Buffer
+	for p < len(s) && s[p] != '"' {
+		out.WriteRune(s[p])
+		p++
+	}
+
+	if p == len(s) {
+		line, row, _ := getLine(s, p)
+		prefix := fmt.Sprintf("line %d: ", row+1)
+		fmt.Fprintf(os.Stderr, prefix)
+		fmt.Fprintln(os.Stderr, line)
+		fmt.Fprintf(os.Stderr, "string not ended\n")
+		os.Exit(1)
+	}
+
+	p++ // "
+	return out.String(), p
 }
 
 func skip(s []rune, start int) int {

@@ -28,7 +28,7 @@ lg          = add ("<" add)?
 add         = mul ("+" mul | "-" mul)*
 mul         = unary ("*" unary | "/" unary)*
 unary       = ("+" | "-" | "sizeof")? primary
-primary     = (ident "[" expr "]") | num | funccall | ident | "(" expr ")"
+primary     = (ident "[" expr "]") | string | num | funccall | ident | "(" expr ")"
 funccall    = ident funcparams
 funcparams  = "(" ( expr ("," expr)* ")" | ")")
 
@@ -51,6 +51,8 @@ type Parser struct {
 	curFn     *ast.FuncDefNode
 	Globals   map[string]*ast.LocalVariable
 	funcdefs  map[string]*ast.FuncDefNode
+	Strings   []*ast.StringLiteralExp
+	strCnt    int
 }
 
 func New(tzer *token.Tokenizer) *Parser {
@@ -58,6 +60,7 @@ func New(tzer *token.Tokenizer) *Parser {
 		tzer:     tzer,
 		Globals:  map[string]*ast.LocalVariable{},
 		funcdefs: map[string]*ast.FuncDefNode{},
+		Strings:  []*ast.StringLiteralExp{},
 	}
 	parser.head = parser.tzer.Tokenize()
 	parser.cur = parser.head
@@ -570,6 +573,8 @@ func (p *Parser) primary() ast.Exp {
 	switch p.cur.Kind {
 	case token.NUM:
 		return p.num()
+	case token.STRING:
+		return p.str()
 	case token.IDENT:
 		exp := p.ident()
 		ident, ok := exp.(*ast.IdentExp)
@@ -611,6 +616,15 @@ func (p *Parser) primary() ast.Exp {
 func (p *Parser) num() ast.Exp {
 	p.expect(p.cur, token.NUM)
 	node := ast.NewNumExp(p.cur.Val, p.cur)
+	p.nextTkn()
+	return node
+}
+
+func (p *Parser) str() ast.Exp {
+	p.expect(p.cur, token.STRING)
+	lbl := p.getLbl()
+	node := ast.NewStringLiteralExp(p.cur.Str, p.cur, lbl)
+	p.Strings = append(p.Strings, node)
 	p.nextTkn()
 	return node
 }
@@ -682,6 +696,10 @@ func (p *Parser) prepareLocals(locals []*ast.LocalVariable) {
 			p.Globals[local.Name] = local
 		}
 	}
+}
+
+func (p *Parser) getLbl() string {
+	return fmt.Sprintf(".L.string.%d", p.strCnt)
 }
 
 func (p *Parser) expect(token *token.Token, kinds ...token.TokenKind) {

@@ -31,8 +31,10 @@ type Writer interface {
 	Neg(rad1 string)
 	Ret()
 	Globl(label string)
+	Size(size int)
 	Data()
 	Label(name string)
+	String(value string)
 	Text(text string)
 	Address(name string) string
 	Index(base, unit string, size int) string
@@ -170,6 +172,14 @@ func (g *Intel) Label(name string) {
 
 func (g *Intel) Globl(label string) {
 	g.Text(fmt.Sprintf(".globl %s", label))
+}
+
+func (g *Intel) String(value string) {
+	g.Text(fmt.Sprintf(".string \"%s\"", value))
+}
+
+func (g *Intel) Size(value int) {
+	g.Text(fmt.Sprintf(".size, %d", value))
 }
 
 func (g *Intel) Data() {

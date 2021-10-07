@@ -22,6 +22,7 @@ assert() {
   fi
 }
 
+assert 0 string1.c
 assert 34 char4.c
 assert 9 char3.c
 assert 7 char2.c
