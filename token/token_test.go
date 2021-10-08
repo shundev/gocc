@@ -1,12 +1,71 @@
 package token
 
 import (
+	"strings"
 	"testing"
 )
 
-func TestTokenizer(t *testing.T) {
-	input := "()10+-333333     *400/)==!=<><=>=a100=z かなカナ漢字 🍺;returna return*ABC_Z _H if else while do{}for&int**,sizeof[]char\"hello\""
+func TestSKipUntil(t *testing.T) {
+	tests := []struct {
+		input string
+		start int
+		until string
+		want  int
+	}{
+		{
+			"aaa*/aa", 0, "*/", 5,
+		},
+		{
+			"aaaaa", 0, "*/", 5,
+		},
+		{
+			"aaaa\nbbb\nccc", 0, "\n", 5,
+		},
+		{
+			"aaaa\nbbb\nccc", 6, "\n", 9,
+		},
+	}
+
+	for i, tt := range tests {
+		got := skipUntil([]rune(tt.input), tt.start, []rune(tt.until))
+		if got != tt.want {
+			t.Errorf("%d: want=%d, but got=%d", i, tt.want, got)
+		}
+	}
+}
+
+func TestTokenizerComment(t *testing.T) {
+	input := `
+10
+// comment 20
+30
+/* 40
+50
+*/ 60
+70
+`
 	tzer := New(input)
+	cur := tzer.Tokenize()
+
+	testToken(t, cur, NUM, 10, "10", nil)
+	cur = cur.Next
+	testToken(t, cur, NUM, 30, "30", nil)
+	cur = cur.Next
+	testToken(t, cur, NUM, 60, "60", nil)
+	cur = cur.Next
+	testToken(t, cur, NUM, 70, "70", nil)
+	cur = cur.Next
+	testToken(t, cur, EOF, 0, "", nil)
+}
+
+func TestTokenizer(t *testing.T) {
+	input := `
+()10+-333333     *400/)==!=<><=>=a100=z かなカナ漢字 🍺;
+returna return*ABC_Z _H if else while do{}for&int**,
+sizeof[]char"hello"
+`
+	s := strings.ReplaceAll(input, "\n", "")
+	tzer := New(s)
 	cur := tzer.Tokenize()
 
 	testToken(t, cur, LPAREN, 0, "(", 0)
@@ -100,7 +159,7 @@ func TestTokenizer(t *testing.T) {
 	testToken(t, cur, EOF, 0, "", 120)
 }
 
-func testToken(t *testing.T, token *Token, kind TokenKind, val int, str string, col int) {
+func testToken(t *testing.T, token *Token, kind TokenKind, val int, str string, col interface{}) {
 	if token.Kind != kind {
 		t.Fatalf("Wrong TokenKind: %s != %s", token.Kind, kind)
 	}
@@ -112,7 +171,9 @@ func testToken(t *testing.T, token *Token, kind TokenKind, val int, str string, 
 	if token.Str != str {
 		t.Fatalf("Wrong Token.Str: %s != %s", token.Str, str)
 	}
-	if token.Col != col {
+
+	col, ok := col.(int)
+	if ok && token.Col != col {
 		t.Fatalf("Wrong Token.Col: %d != %d", token.Col, col)
 	}
 

@@ -132,8 +132,17 @@ func (t *Tokenizer) Tokenize() *Token {
 			cur = newToken(ASTERISK, cur, 0, string(t.curCh()), t.col)
 			t.col++
 		case '/':
-			cur = newToken(SLASH, cur, 0, string(t.curCh()), t.col)
 			t.col++
+			if t.curCh() == '/' {
+				t.col = skipUntil(t.code, t.col+1, []rune("\n"))
+			} else if t.curCh() == '*' {
+				t.col++
+				t.col = skipUntil(t.code, t.col+1, []rune("*/"))
+			} else {
+				t.col--
+				cur = newToken(SLASH, cur, 0, string(t.curCh()), t.col)
+				t.col++
+			}
 		case '(':
 			cur = newToken(LPAREN, cur, 0, string(t.curCh()), t.col)
 			t.col++
@@ -371,6 +380,17 @@ func skip(s []rune, start int) int {
 		p++
 	}
 
+	return p
+}
+
+func skipUntil(s []rune, start int, until []rune) int {
+	p := start
+	l := len(until)
+	for p < len(s)-l && !equal(s[p:p+l], until) {
+		p++
+	}
+
+	p += l
 	return p
 }
 
