@@ -148,17 +148,22 @@ func (g *Generator) global(node *ast.DeclarationStmt) {
 	for _, local := range node.LV.Locals {
 		g.writer.Globl(local.Name)
 		g.writer.Data()
-		g.writer.Label(local.Name)
 		// XXX: 今はすべて8-byte
 		if node.Exp == nil {
 			g.writer.Text(".quad 0")
 		} else {
-			e, ok := g.eval(node.Exp).(*ast.NumExp)
-			if !ok {
+			switch ty := g.eval(node.Exp).(type) {
+			case *ast.NumExp:
+				g.writer.Label(local.Name)
+				s := fmt.Sprintf(".quad %d", ty.Val)
+				g.writer.Text(s)
+			case *ast.StringLiteralExp:
+				g.writer.Label(local.Name)
+				s := fmt.Sprintf(".quad %s", ty.Label)
+				g.writer.Text(s)
+			default:
 				g.Error(node.Exp.Token(), "Cannot evaluate rvalue of %s:", node.Exp)
 			}
-			s := fmt.Sprintf(".quad %d", e.Val)
-			g.writer.Text(s)
 		}
 	}
 }
@@ -487,6 +492,8 @@ func (g *Generator) getOffset(fn *ast.FuncDefNode, node interface{}) (string, st
 func (g *Generator) eval(exp ast.Exp) ast.Exp {
 	switch exp := exp.(type) {
 	case *ast.NumExp:
+		return exp
+	case *ast.StringLiteralExp:
 		return exp
 	case *ast.UnaryExp:
 		right := g.eval(exp.Right)
