@@ -1,4 +1,5 @@
 int main() {
   int x;
-  return sizeof (x + 10);
+  assert( sizeof (x + 10), 4 );
+  return 0;
 }

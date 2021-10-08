@@ -8,8 +8,10 @@ build: main
 hello.o: c/hello.c
 	cc -c c/hello.c
 
+test.o: c/test.c
+	cc -c c/test.c
 
-test: main hello.o
+test: main hello.o test.o
 	go test ./parser ./token ./generator ./repl ./writer
 	./test.sh
 

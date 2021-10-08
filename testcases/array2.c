@@ -6,5 +6,6 @@ int main() {
   y[1] = 3;
   y[0] = 4;
   x = 10;
-  return y[0] + y[1] + y[2] + y[3];
+  assert(y[0] + y[1] + y[2] + y[3], 10);
+  return 0;
 }

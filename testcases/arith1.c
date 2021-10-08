@@ -1,3 +1,4 @@
 int main() {
-  return 5 + 5 * 5;
+  assert(5 + 5 * 5, 30);
+  return 0;
 }

@@ -6,5 +6,6 @@ int foo(int *x) {
 int main() {
   int x = 5;
   foo(&x);
-  return x;
+  assert( x, 10 );
+  return 0;
 }

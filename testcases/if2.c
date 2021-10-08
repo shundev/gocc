@@ -1,10 +1,13 @@
 int main() {
+  int c = 0;
   if (1) {
     int a = 5;
     int b = 10;
     20;
-    return a + b;
+    c = a + b;
     30;
   } else
-    return 50;
+    c = 50;
+  assert(c, 15);
+  return 0;
 }

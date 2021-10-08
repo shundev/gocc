@@ -5,4 +5,7 @@ int fib(int n) {
     return fib(n - 2) + fib(n - 1);
 }
 
-int main() { return fib(10); }
+int main() {
+  assert( fib(10), 55 );
+  return 0;
+}

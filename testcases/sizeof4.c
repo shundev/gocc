@@ -4,5 +4,6 @@ int *foo() {
 }
 
 int main() {
-  return sizeof foo();
+  assert( sizeof foo(), 8 );
+  return 0;
 }

@@ -4,5 +4,6 @@ int main() {
   b[0] = 3;
   b[9] = 4;
 
-  return b[0] + b[9];
+  assert(b[0] + b[9], 7);
+  return 0;
 }

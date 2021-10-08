@@ -3,4 +3,7 @@ int f(int a, int b, int c, int d, int e, int g) {
   return a + b + c + d + e + g + h + i;
 }
 
-int main() { return f(1, 1, 1, 1, 1, 1); }
+int main() {
+  assert( f(1, 1, 1, 1, 1, 1), 8 );
+  return 0;
+}

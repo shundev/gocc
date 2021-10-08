@@ -1,5 +1,6 @@
 int main() {
   int x = 3;
   int y = 5;
-  return *(&y - 1);
+  assert( *(&y - 1), 3 );
+  return 0;
 }

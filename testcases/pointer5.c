@@ -1,4 +1,5 @@
 int main() {
   int x = 5;
-  return *&*&x;
+  assert( *&*&x, 5 );
+  return 0;
 }
