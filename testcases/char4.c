@@ -7,6 +7,6 @@ int main() {
   char a = 10;
   char b = 20;
   char c = z(a, b, 1, 1, 1);
-  assert(c, 34);
+  assertC(c, 34);
   return 0;
 }

@@ -4,6 +4,6 @@ int y = 10 / 2;
 int z = 1 + 2 + 3 + 4 + 5;
 
 int main() {
-  assert(w + x + y + z, 10);
+  assert(w + x + y + z, 60);
   return 0;
 }
