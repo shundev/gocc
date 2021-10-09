@@ -9,7 +9,7 @@ import (
 	"strconv"
 )
 
-const DEBUG = false
+const DEBUG = true
 
 /*
 program     = (funcdef | global)*
@@ -92,8 +92,14 @@ func (p *Parser) backTo(to *token.Token) {
 }
 
 func (p *Parser) getDef(name string) *ast.LocalVariable {
-	if v, ok := p.curFn.Locals[name]; ok {
-		return v
+	debug("getDef def not found: %s", name)
+	debug("getDef p.Globals: %s", p.Globals)
+	debug("getDef p.curFn: %s", p.curFn)
+	if p.curFn != nil {
+		debug("getDef p.Locals: %s", p.curFn.Locals)
+		if v, ok := p.curFn.Locals[name]; ok {
+			return v
+		}
 	}
 
 	if v, ok := p.Globals[name]; ok {

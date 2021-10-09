@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	DEBUG        = false
+	DEBUG        = true
 	INTEL_SYNTAX = true
 )
 
@@ -155,11 +155,16 @@ func (g *Generator) global(node *ast.DeclarationStmt) {
 			switch ty := g.eval(node.Exp).(type) {
 			case *ast.NumExp:
 				g.writer.Label(local.Name)
-				s := fmt.Sprintf(".quad %d", ty.Val)
+				s := fmt.Sprintf(".long %d", ty.Val)
 				g.writer.Text(s)
 			case *ast.StringLiteralExp:
 				g.writer.Label(local.Name)
 				s := fmt.Sprintf(".quad %s", ty.Label)
+				g.writer.Text(s)
+			case *ast.UnaryExp:
+				r, _ := ty.Right.(*ast.IdentExp)
+				g.writer.Label(local.Name)
+				s := fmt.Sprintf(".quad %s", r.Name)
 				g.writer.Text(s)
 			default:
 				g.Error(node.Exp.Token(), "Cannot evaluate rvalue of %s:", node.Exp)
@@ -492,10 +497,22 @@ func (g *Generator) getOffset(fn *ast.FuncDefNode, node interface{}) (string, st
 func (g *Generator) eval(exp ast.Exp) ast.Exp {
 	switch exp := exp.(type) {
 	case *ast.NumExp:
+		debug("eval %T, %s", exp, exp)
 		return exp
 	case *ast.StringLiteralExp:
+		debug("eval %T, %s", exp, exp)
 		return exp
 	case *ast.UnaryExp:
+		debug("eval %T, %s", exp, exp)
+
+		if exp.Op == "&" {
+			_, ok := exp.Right.(*ast.IdentExp)
+			if !ok {
+				g.Error(exp.Right.Token(), "Invalid exp for rvalue of & unary exp: %s", exp.Right)
+			}
+			return exp
+		}
+
 		right := g.eval(exp.Right)
 		r, ok := right.(*ast.NumExp)
 		if !ok {
@@ -512,6 +529,7 @@ func (g *Generator) eval(exp ast.Exp) ast.Exp {
 
 		g.Error(exp.Token(), "Invalid operator for global rvalue unary right: %s", exp.Op)
 	case *ast.InfixExp:
+		debug("eval %T, %s", exp, exp)
 		left := g.eval(exp.Left)
 		right := g.eval(exp.Right)
 		l, ok := left.(*ast.NumExp)

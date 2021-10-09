@@ -22,9 +22,9 @@ clean:
 	rm -f main tmp* *.o *~
 
 # エラーになるかもしれないが、tmpのステータスコードが表示される
-sample: main hello.o
+sample: main hello.o test.o
 	./main testcases/sample.c >./tmp.s 2>>./logs/build.log
-	cc -o tmp tmp.s
+	cc -o tmp tmp.s hello.o test.o
 	./tmp
 
 asm:
