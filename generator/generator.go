@@ -270,6 +270,10 @@ func (g *Generator) walk(node ast.Node) {
 		}
 	case *ast.StringLiteralExp:
 		g.writer.Lea(ty.Label, RIP, RAX)
+	case *ast.ArrayLiteral:
+		for _, exp := range ty.AsInfixExps() {
+			g.walk(exp)
+		}
 	case *ast.FuncCallExp:
 		// 関数呼び出し
 		defined := ty.Def != nil
@@ -349,11 +353,18 @@ func (g *Generator) walk(node ast.Node) {
 	case *ast.DeclarationStmt:
 		for _, local := range ty.LV.Locals {
 			if ty.Exp != nil {
-				g.address(g.currentFn, local)
-				g.writer.Push(RAX) // 直近2つのRAXが必要な場合は前のRAXをスタックに退避
-				g.walk(ty.Exp)
-				g.writer.Pop(RDI)
-				g.writer.Mov(getReg(RAX, local.Type), g.writer.Address(RDI))
+				// XXX: ここでよいのか？
+				// 左辺値のアドレスが必要な場合のみアドレスをRAXにのせる
+				switch ty.Exp.(type) {
+				case *ast.ArrayLiteral:
+					g.walk(ty.Exp)
+				default:
+					g.address(g.currentFn, local)
+					g.writer.Push(RAX) // 直近2つのRAXが必要な場合は前のRAXをスタックに退避
+					g.walk(ty.Exp)
+					g.writer.Pop(RDI)
+					g.writer.Mov(getReg(RAX, local.Type), g.writer.Address(RDI))
+				}
 			}
 		}
 		// 戻り値はRAXに入っている

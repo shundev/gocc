@@ -31,12 +31,13 @@ unary       = ("+" | "-" | "sizeof")? primary
 primary     = (ident "[" expr "]") | string | num | funccall | ident | "(" expr ")"
 funccall    = ident funcparams
 funcparams  = "(" ( expr ("," expr)* ")" | ")")
+arrayliteral = "{" "}" | "{" expr ("," expr)* "}"
 
 declaration =
   declspec
     (declarator
       ("=" expr)?
-      ("," declarator ("=" expr)?)
+      ("," declarator ("=" (expr | arrayliteral))?)
     *)?
   ";"
 declarator = "*"* ident ("[" num "]")?
@@ -92,9 +93,7 @@ func (p *Parser) backTo(to *token.Token) {
 }
 
 func (p *Parser) getDef(name string) *ast.LocalVariable {
-	debug("getDef def not found: %s", name)
-	debug("getDef p.Globals: %s", p.Globals)
-	debug("getDef p.curFn: %s", p.curFn)
+	debug("getDef")
 	if p.curFn != nil {
 		debug("getDef p.Locals: %s", p.curFn.Locals)
 		if v, ok := p.curFn.Locals[name]; ok {
@@ -302,7 +301,15 @@ func (p *Parser) declarationStmt(isLocal bool) *ast.StmtListNode {
 
 		left := ast.NewLocalVariableNode(initTok)
 		left.Locals = locals
-		right := p.expr()
+
+		var right ast.Exp
+		if p.cur.Kind == token.LBRACE {
+			ident := ast.NewIdentExp(identTok.Str, identTok, ty)
+			right = p.arrayliteral(ident)
+		} else {
+			right = p.expr()
+		}
+
 		declStmt := ast.NewDeclarationStmt(left, right, "=", initTok)
 		err := declStmt.CheckTypeError()
 		if err != nil {
@@ -333,6 +340,31 @@ func (p *Parser) declarationStmt(isLocal bool) *ast.StmtListNode {
 	p.expect(p.cur, token.SEMICOLLON)
 	p.nextTkn()
 	return stmtList
+}
+
+func (p *Parser) arrayliteral(ident *ast.IdentExp) *ast.ArrayLiteral {
+	debug("arrayliteral")
+	p.expect(p.cur, token.LBRACE)
+	node := ast.NewArrayLiteral(ident, p.cur)
+	p.nextTkn()
+
+	if p.cur.Kind == token.RBRACE {
+		p.nextTkn()
+		return node
+	}
+
+	exp := p.expr()
+	node.Exps = append(node.Exps, exp)
+
+	for p.cur.Kind == token.COMMA {
+		p.nextTkn()
+		exp := p.expr()
+		node.Exps = append(node.Exps, exp)
+	}
+
+	p.expect(p.cur, token.RBRACE)
+	p.nextTkn()
+	return node
 }
 
 func (p *Parser) blockStmt() *ast.BlockStmt {

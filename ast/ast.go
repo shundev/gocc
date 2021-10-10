@@ -733,6 +733,56 @@ func (n *FuncDefNode) PrepareStackSize() {
 	n.StackSize = alignTo(max, 16)
 }
 
+/* Array Literal */
+
+type ArrayLiteral struct {
+	Ident *IdentExp
+	Exps  []Exp
+	token *token.Token
+}
+
+func NewArrayLiteral(ident *IdentExp, token *token.Token) *ArrayLiteral {
+	return &ArrayLiteral{
+		Ident: ident,
+		Exps:  []Exp{},
+		token: token,
+	}
+}
+
+func (n *ArrayLiteral) expNode() {}
+
+func (n *ArrayLiteral) AsInfixExps() []*InfixExp {
+	infixes := []*InfixExp{}
+	for i, exp := range n.Exps {
+		num := NewNumExp(i, exp.Token())
+		index := NewIndexExp(n.Ident, num, exp.Token())
+		infix := NewInfixExp(index, exp, "=", exp.Token())
+		infixes = append(infixes, infix)
+	}
+
+	return infixes
+}
+
+func (n *ArrayLiteral) Type() types.Type {
+	return n.Ident.typ
+}
+
+func (n *ArrayLiteral) Token() *token.Token {
+	return n.token
+}
+
+func (n *ArrayLiteral) String() string {
+	var out bytes.Buffer
+	ss := []string{}
+	for _, exp := range n.Exps {
+		ss = append(ss, exp.String())
+	}
+	out.WriteString("{")
+	out.WriteString(strings.Join(ss, ", "))
+	out.WriteString("}")
+	return out.String()
+}
+
 func err(s string, args ...interface{}) {
 	fmt.Fprintf(os.Stderr, s+"\n")
 }

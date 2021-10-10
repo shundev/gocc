@@ -12,6 +12,10 @@ func TestParseInfix(t *testing.T) {
 		want  string
 	}{
 		{
+			"int main() { int arr[3] = {1, 2, 3}; return arr[0]; }",
+			"int main () { int[3] arr = {1, 2, 3}; return arr[0]; }",
+		},
+		{
 			"char a[6] = \"hello\"; int main() { return 0; }",
 			"char[6] a = \"hello\"; int main () { return 0; }",
 		},

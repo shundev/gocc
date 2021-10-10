@@ -1,8 +1,5 @@
-int x = 5;
-int *y = &x;
-
 int main() {
-  *y = 8;
-  assert( x, 8 );
+  int arr[2] = {10, 20};
+  assert( arr[0], 10 );
   return 0;
 }
