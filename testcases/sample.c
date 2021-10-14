@@ -1,5 +1,6 @@
+char a[6] = "hello";
+
 int main() {
-  int arr[2] = {10, 20};
-  assert( arr[0], 10 );
+  printf(a);
   return 0;
 }

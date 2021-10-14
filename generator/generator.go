@@ -584,7 +584,7 @@ func (g *Generator) eval(exp ast.Exp) ast.Exp {
 }
 
 func reduceSizeof(unary *ast.UnaryExp) int {
-	return unary.Right.Type().Size()
+	return unary.Right.Type().StackSize()
 }
 
 func debug(s string, args ...interface{}) {

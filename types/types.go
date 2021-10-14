@@ -17,8 +17,8 @@ var (
 
 type Type interface {
 	String() string
-	Size() int
-	StackSize() int
+	Size() int      // それを指す参照のサイズ
+	StackSize() int // データが実際にメモリを占めるサイズ
 	CanAssign(right Type) bool
 	CanAdd(right Type) bool
 	CanMul(right Type) bool
@@ -36,7 +36,7 @@ func (t *Char) Size() int {
 }
 
 func (t *Char) StackSize() int {
-	return t.Size()
+	return 1
 }
 
 func (t *Char) CanAssign(right Type) bool {
@@ -63,7 +63,7 @@ func (t *Int) Size() int {
 }
 
 func (t *Int) StackSize() int {
-	return t.Size()
+	return 4
 }
 
 func (t *Int) CanAssign(right Type) bool {
@@ -102,7 +102,7 @@ func (t *IntPointer) Size() int {
 }
 
 func (t *IntPointer) StackSize() int {
-	return t.Size()
+	return 8
 }
 
 func (t *IntPointer) CanAssign(right Type) bool {
@@ -136,7 +136,7 @@ func (t *Array) String() string {
 }
 
 func (t *Array) Size() int {
-	return t.Base.Size() * t.Length
+	return 8
 }
 
 func (t *Array) StackSize() int {
