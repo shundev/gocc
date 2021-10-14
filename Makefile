@@ -28,7 +28,7 @@ sample: main hello.o test.o
 	./tmp
 
 asm:
-	cc -o tmp tmp.s
+	cc -o tmp tmp.s hello.o test.o
 	./tmp
 
 .PHONY: test build clean repl sample asm

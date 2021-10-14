@@ -164,6 +164,20 @@ func (g *Generator) global(node *ast.DeclarationStmt) {
 				s := fmt.Sprintf("%s %s", tyStr, ty.Label)
 				g.writer.Label(local.Name)
 				g.writer.Text(s)
+			case *ast.ArrayLiteral:
+				g.writer.Label(local.Name)
+				for _, exp := range ty.Exps {
+					num, ok := exp.(*ast.NumExp)
+					if !ok {
+						g.Error(ty.Token(), "Invalid global rvalue.")
+					}
+
+					arrTy := local.Type.(*types.Array)
+					baseTyStr := getType(arrTy.Base.Size())
+					debug("%T", arrTy.Base)
+					s := fmt.Sprintf("%s %d", baseTyStr, num.Val)
+					g.writer.Text(s)
+				}
 			case *ast.UnaryExp:
 				r, _ := ty.Right.(*ast.IdentExp)
 				s := fmt.Sprintf("%s %s", tyStr, r.Name)
@@ -509,16 +523,15 @@ func (g *Generator) getOffset(fn *ast.FuncDefNode, node interface{}) (string, st
 
 // FIXME: Dereference is not supported. i.e. int *x = &y
 func (g *Generator) eval(exp ast.Exp) ast.Exp {
+	debug("eval %T, %s", exp, exp)
 	switch exp := exp.(type) {
 	case *ast.NumExp:
-		debug("eval %T, %s", exp, exp)
 		return exp
 	case *ast.StringLiteralExp:
-		debug("eval %T, %s", exp, exp)
+		return exp
+	case *ast.ArrayLiteral:
 		return exp
 	case *ast.UnaryExp:
-		debug("eval %T, %s", exp, exp)
-
 		if exp.Op == "&" {
 			_, ok := exp.Right.(*ast.IdentExp)
 			if !ok {

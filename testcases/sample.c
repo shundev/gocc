@@ -1,6 +1,6 @@
-char a[6] = "hello";
+int a[3] = {1, 2, 3};
 
 int main() {
-  printf(a);
+  assert(a[0]+a[2], 4);
   return 0;
 }
