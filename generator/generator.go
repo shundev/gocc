@@ -148,23 +148,26 @@ func (g *Generator) global(node *ast.DeclarationStmt) {
 	for _, local := range node.LV.Locals {
 		g.writer.Globl(local.Name)
 		g.writer.Data()
-		// XXX: 今はすべて8-byte
+
+		tyStr := getType(local.Type.Size())
+
 		if node.Exp == nil {
-			g.writer.Text(".quad 0")
+			s := fmt.Sprintf("%s 0", tyStr)
+			g.writer.Text(s)
 		} else {
 			switch ty := g.eval(node.Exp).(type) {
 			case *ast.NumExp:
+				s := fmt.Sprintf("%s %d", tyStr, ty.Val)
 				g.writer.Label(local.Name)
-				s := fmt.Sprintf(".long %d", ty.Val)
 				g.writer.Text(s)
 			case *ast.StringLiteralExp:
+				s := fmt.Sprintf("%s %s", tyStr, ty.Label)
 				g.writer.Label(local.Name)
-				s := fmt.Sprintf(".quad %s", ty.Label)
 				g.writer.Text(s)
 			case *ast.UnaryExp:
 				r, _ := ty.Right.(*ast.IdentExp)
+				s := fmt.Sprintf("%s %s", tyStr, r.Name)
 				g.writer.Label(local.Name)
-				s := fmt.Sprintf(".quad %s", r.Name)
 				g.writer.Text(s)
 			default:
 				g.Error(node.Exp.Token(), "Cannot evaluate rvalue of %s:", node.Exp)
@@ -619,5 +622,19 @@ func getReg(reg string, ty types.Type) string {
 ERROR:
 	err("Invalid size %T for %s", ty, reg)
 	os.Exit(1)
+	return ""
+}
+
+func getType(size int) string {
+	switch size {
+	case 1:
+		return ".byte"
+	case 4:
+		return ".long"
+	case 8:
+		return ".quad"
+	}
+
+	err("Invalid data size: %d", size)
 	return ""
 }
